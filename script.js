@@ -32,3 +32,39 @@ document.getElementById("claimForm").addEventListener("submit", function(event) 
     <ul>${docs.map(d => `<li>${d}</li>`).join('')}</ul>
   `;
 });
+
+//  Code for adding Gemini based intelligence
+
+async function getFailureCodeFromGemini(failureDescription, partName) {
+  const apiKey = 'AIzaSyBUHFr6rqFvPN6oqN25a_vfIXuORlDqnME';
+
+  const prompt = `
+You are a warranty engineer assistant. A customer reports: "${failureDescription}" involving part "${partName}".
+Return the best matching failure code from this list:
+- F213 - Gearbox Synchronizer Failure
+- F107 - Hydraulic Seal Failure
+- F305 - Electrical Wiring Burnout
+- F412 - Bearing Wear and Tear
+- F999 - Unknown or Unclassified
+
+Respond ONLY with the best matching failure code and its name.`;
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [{ text: prompt }]
+        }
+      ]
+    })
+  });
+
+  const data = await response.json();
+  const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "F999 - Unknown";
+  return textResponse.trim();
+}
+
