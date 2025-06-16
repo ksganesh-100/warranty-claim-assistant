@@ -1,25 +1,186 @@
+:root {
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --background-light: #f9f9f9;
+    --card-background: #ffffff;
+    --border-color: #e0e0e0;
+    --text-dark: #333;
+    --text-light: #666;
+    --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
 body {
-  font-family: Arial, sans-serif;
-  margin: 40px;
-  background-color: #f9f9f9;
+    font-family: var(--font-family);
+    margin: 0;
+    padding: 20px;
+    background-color: var(--background-light);
+    color: var(--text-dark);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
 }
+
+header {
+    width: 100%;
+    max-width: 800px;
+    text-align: center;
+    margin-bottom: 30px;
+}
+
 h1 {
-  color: #333;
+    color: var(--primary-color);
+    margin-bottom: 20px;
 }
+
+main {
+    width: 100%;
+    max-width: 800px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+section {
+    background: var(--card-background);
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--border-color);
+}
+
 form {
-  margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
 }
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
 label {
-  display: block;
-  margin: 10px 0;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 0.95em;
 }
+
+input[type="text"],
+input[type="date"],
 textarea {
-  width: 300px;
-  height: 80px;
+    width: calc(100% - 20px); /* Account for padding */
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1em;
+    box-sizing: border-box; /* Include padding in element's total width and height */
 }
-#output {
-  background: white;
-  padding: 20px;
-  border-radius: 10px;
-  border: 1px solid #ccc;
+
+textarea {
+    min-height: 100px;
+    resize: vertical; /* Allow vertical resizing */
+}
+
+input:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+button {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    align-self: flex-start; /* Align button to the start within the flex container */
+}
+
+button:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* Status and Output Styles */
+.status-message {
+    font-weight: bold;
+    text-align: center;
+    margin-top: 15px;
+    color: var(--primary-color); /* To make it stand out */
+}
+
+.output-card {
+    margin-top: 20px;
+    padding: 25px;
+    background: var(--card-background);
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--border-color);
+    line-height: 1.6;
+}
+
+.output-card h2 {
+    color: var(--primary-color);
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.6em;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+.output-card p {
+    margin-bottom: 8px;
+}
+
+.output-card strong {
+    color: var(--text-dark);
+}
+
+.output-card ul {
+    list-style: none; /* Remove default bullet points */
+    padding: 0;
+    margin-top: 15px;
+}
+
+.output-card ul li {
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border-color);
+    display: flex;
+    align-items: center;
+}
+
+.output-card ul li:last-child {
+    border-bottom: none;
+}
+
+/* Icons for list items (optional, but nice) */
+.output-card ul li::before {
+    content: '📄'; /* Document icon */
+    margin-right: 10px;
+    font-size: 1.2em;
+}
+
+/* Specific styles for eligibility */
+.eligible-status {
+    color: var(--success-color);
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.not-eligible-status {
+    color: var(--danger-color);
+    font-weight: bold;
+    font-size: 1.1em;
 }
