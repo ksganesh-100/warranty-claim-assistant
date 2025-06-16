@@ -34,10 +34,21 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="vin">Vehicle VIN:</label>
+                    <input type="text" id="vin" name="vin" required maxlength="17" placeholder="e.g., '1HGCP2F1XNA000001'">
+                </div>
+
+                <div class="form-group">
+                    <label for="odometer">Odometer (Miles):</label>
+                    <input type="number" id="odometer" name="odometer" required min="0" placeholder="e.g., '45000'">
+                </div>
+                
+                <div class="form-group">
                     <label for="purchaseDate">Purchase Date:</label>
                     <input type="date" id="purchaseDate" name="purchaseDate" required>
                 </div>
 
+                
                 <button type="submit" id="generateClaimBtn">Generate Claim</button>
             </form>
         </section>
