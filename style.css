@@ -1,22 +1,329 @@
-/* Add to .form-group */
-.form-group {
-    margin-bottom: 15px; /* More vertical space */
+/* Variables remain at the top */
+:root {
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --background-light: #f9f9f9;
+    --card-background: #ffffff;
+    --border-color: #e0e0e0;
+    --text-dark: #333;
+    --text-light: #666;
+    --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --input-focus-shadow: rgba(0, 123, 255, 0.25);
 }
 
-/* Add to input/textarea focus */
+body {
+    font-family: var(--font-family);
+    margin: 0;
+    padding: 20px;
+    background-color: var(--background-light);
+    color: var(--text-dark);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+header {
+    width: 100%;
+    max-width: 800px;
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 10px 0;
+}
+
+h1 {
+    color: var(--primary-color);
+    margin: 0;
+    font-size: 2.5em;
+}
+
+main {
+    width: 100%;
+    max-width: 800px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+section {
+    background: var(--card-background);
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--border-color);
+    transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
+}
+
+section:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+label {
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 0.95em;
+}
+
+input[type="text"],
+input[type="date"],
+textarea {
+    width: calc(100% - 24px);
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1em;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
 input:focus,
 textarea:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px var(--input-focus-shadow); /* Existing, but emphasizing its impact */
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
 }
 
-/* Enhance the "section" styles as they are your cards */
-section {
-    background: var(--card-background);
-    padding: 40px; /* Increased padding for more space */
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); /* Slightly softer shadow */
-    border: 1px solid var(--border-color);
-    transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
+button {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease, opacity 0.3s ease;
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
+
+button:hover:not(:disabled) {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+button:disabled {
+    background-color: var(--secondary-color);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* Status and Output Styles */
+.status-message {
+    font-weight: bold;
+    text-align: center;
+    margin: 15px 0 20px 0;
+    color: var(--primary-color);
+    font-size: 1.1em;
+    transition: opacity 0.3s ease;
+    min-height: 1.5em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.status-message.loading::before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0, 123, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.output-card {
+    padding: 25px;
+    background: var(--card-background);
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--border-color);
+    line-height: 1.6;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeSlideIn 0.6s forwards ease-out;
+    position: relative;
+}
+
+@keyframes fadeSlideIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.output-card h2 {
+    color: var(--primary-color);
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.8em;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.output-card h2::before {
+    content: '📋';
+    font-size: 1.2em;
+}
+
+.output-card p {
+    margin-bottom: 10px;
+}
+
+.output-card strong {
+    color: var(--text-dark);
+}
+
+.summary-section {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.summary-section:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.eligibility-status {
+    font-weight: bold;
+    font-size: 1.15em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.eligibility-status.eligible {
+    color: var(--success-color);
+}
+
+.eligibility-status.eligible::before {
+    content: '✅';
+    font-size: 1.2em;
+}
+
+.eligibility-status.not-eligible {
+    color: var(--danger-color);
+}
+
+.eligibility-status.not-eligible::before {
+    content: '❌';
+    font-size: 1.2em;
+}
+
+.failure-code-display {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: var(--text-dark);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px; /* Adjust spacing */
+}
+
+.failure-code-display::before {
+    content: '💡';
+    font-size: 1.2em;
+}
+
+/* NEW: Confidence Score and Matched Keywords Styling */
+.confidence-score {
+    font-size: 0.9em;
+    color: var(--text-light);
+    margin-top: 5px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.confidence-score::before {
+    content: '📊'; /* Bar chart icon */
+    font-size: 1.1em;
+}
+
+.matched-keywords {
+    font-size: 0.85em;
+    color: var(--text-light);
+    font-style: italic;
+    margin-top: 5px;
+    line-height: 1.4;
+}
+
+.matched-keywords span {
+    background-color: rgba(0, 123, 255, 0.1);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-right: 4px;
+    display: inline-block; /* Keep tags together */
+}
+
+.output-card ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 15px;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 15px;
+}
+
+.output-card ul li {
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--border-color);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.output-card ul li:last-child {
+    border-bottom: none;
+}
+
+.output-card ul li::before {
+    content: '📄';
+    font-size: 1.2em;
+    flex-shrink: 0;
+    padding-top: 2px;
+}
+
+.output-card ul li:nth-child(1)::before { content: '🧾'; }
+.output-card ul li:nth-child(2)::before { content: '📸'; }
+.output-card ul li:nth-child(3)::before { content: '✍️'; }
+.output-card ul li:nth-child(4)::before { content: '🎧'; }
+.output-card ul li:nth-child(5)::before { content: '⚡'; }
+.output-card ul li:nth-child(6)::before { content: '🔎'; } /* For "Other Supporting Evidence" */
