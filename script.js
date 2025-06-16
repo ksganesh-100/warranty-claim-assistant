@@ -1,3 +1,5 @@
+console.log("Script loaded ✅");
+
 //Submit event for display
 
 document.getElementById("claimForm").addEventListener("submit", async function(event) {
@@ -70,4 +72,6 @@ Respond ONLY with the best matching failure code and its name.`;
   const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "F999 - Unknown";
   return textResponse.trim();
 }
+
+
 
