@@ -415,8 +415,7 @@ if (claimForm) {
 
         // Add final action buttons
         outputDiv.innerHTML += `
-            <div style="margin-top: 25px; text-align: right; border-top: 1px dashed var(--border-color); padding-top: 20px;">
-                <button class="button" type="button" onclick="alert('In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
+            <div class="output-actions"> <button class="button" type="button" onclick="alert('In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
                 <button class="secondary-btn" type="button" onclick="alert('In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
             </div>
         `;
