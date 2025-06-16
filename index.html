@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Warranty Claim Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,16 +17,19 @@
             <form id="claimForm">
                 <div class="form-group">
                     <label for="product">Product Name:</label>
-                    <input type="text" id="product" name="product" required>
+                    <input type="text" id="product" name="product" required
+                           placeholder="e.g., 'Tractor X120', 'Model S Sedan'">
                 </div>
 
                 <div class="form-group">
                     <label for="part">Part Name:</label>
-                    <input type="text" id="part" name="part" required>
+                    <input type="text" id="part" name="part" required
+                           placeholder="e.g., 'Gearbox', 'Hydraulic Pump', 'Alternator'">
                 </div>
 
                 <div class="form-group">
                     <label for="failure">Failure Description:</label>
+                    <textarea id="failure" name="failure" required placeholder="e.g., 'Customer states gearbox makes a grinding noise shifting into 3rd gear intermittently.', 'Hydraulic fluid leak observed near cylinder rod, affecting lift operation.'"></textarea>
                 </div>
 
                 <div class="form-group">
