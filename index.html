@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Warranty Claim Assistant</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Warranty Claim Assistant</h1>
+
+  <form id="claimForm">
+    <label>Product Name: <input type="text" id="product" required></label><br>
+    <label>Part Name: <input type="text" id="part" required></label><br>
+    <label>Failure Description: <textarea id="failure" required></textarea></label><br>
+    <label>Purchase Date: <input type="date" id="purchaseDate" required></label><br>
+    <button type="submit">Generate Claim</button>
+  </form>
+
+  <div id="output"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
