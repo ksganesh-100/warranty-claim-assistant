@@ -1,3 +1,4 @@
+/* Variables remain at the top */
 :root {
     --primary-color: #007bff;
     --secondary-color: #6c757d;
@@ -9,6 +10,7 @@
     --text-dark: #333;
     --text-light: #666;
     --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --input-focus-shadow: rgba(0, 123, 255, 0.25);
 }
 
 body {
@@ -21,6 +23,7 @@ body {
     flex-direction: column;
     align-items: center;
     min-height: 100vh;
+    box-sizing: border-box; /* Ensures padding doesn't push elements out */
 }
 
 header {
@@ -28,11 +31,13 @@ header {
     max-width: 800px;
     text-align: center;
     margin-bottom: 30px;
+    padding: 10px 0;
 }
 
 h1 {
     color: var(--primary-color);
-    margin-bottom: 20px;
+    margin: 0; /* Remove default margin for h1 */
+    font-size: 2.5em; /* Larger heading */
 }
 
 main {
@@ -49,12 +54,18 @@ section {
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
     border: 1px solid var(--border-color);
+    transition: transform 0.3s ease-out, box-shadow 0.3s ease-out; /* Add transition for hover effects */
+}
+
+section:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
 
 form {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 18px; /* Slightly more space between form groups */
 }
 
 .form-group {
@@ -72,24 +83,25 @@ label {
 input[type="text"],
 input[type="date"],
 textarea {
-    width: calc(100% - 20px); /* Account for padding */
+    width: calc(100% - 24px); /* Account for padding */
     padding: 12px;
     border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 1em;
-    box-sizing: border-box; /* Include padding in element's total width and height */
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease; /* Smooth transitions for focus */
 }
 
 textarea {
     min-height: 100px;
-    resize: vertical; /* Allow vertical resizing */
+    resize: vertical;
 }
 
 input:focus,
 textarea:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
 }
 
 button {
@@ -100,87 +112,189 @@ button {
     border-radius: 8px;
     font-size: 1.1em;
     cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.2s ease;
-    align-self: flex-start; /* Align button to the start within the flex container */
+    transition: background-color 0.3s ease, transform 0.2s ease, opacity 0.3s ease; /* Add opacity for disabled state */
+    align-self: flex-start;
+    display: flex; /* For potential icon/spinner */
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
-button:hover {
+button:hover:not(:disabled) { /* Only hover if not disabled */
     background-color: #0056b3;
     transform: translateY(-2px);
 }
 
-button:active {
+button:active:not(:disabled) {
     transform: translateY(0);
 }
+
+button:disabled {
+    background-color: var(--secondary-color);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
 
 /* Status and Output Styles */
 .status-message {
     font-weight: bold;
     text-align: center;
-    margin-top: 15px;
-    color: var(--primary-color); /* To make it stand out */
+    margin: 15px 0 20px 0; /* Adjust margin */
+    color: var(--primary-color);
+    font-size: 1.1em;
+    transition: opacity 0.3s ease; /* For fade-in/out */
+    min-height: 1.5em; /* Prevent layout shift when text changes */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px; /* Space for spinner */
+}
+
+/* Spinner for loading state */
+.status-message.loading::before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0, 123, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 .output-card {
-    margin-top: 20px;
     padding: 25px;
     background: var(--card-background);
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
     border: 1px solid var(--border-color);
     line-height: 1.6;
+    opacity: 0; /* Start hidden for animation */
+    transform: translateY(20px); /* Start slightly below for slide-up effect */
+    animation: fadeSlideIn 0.6s forwards ease-out; /* Animation */
+    position: relative; /* For potential absolute positioning of icons etc. */
+}
+
+@keyframes fadeSlideIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .output-card h2 {
     color: var(--primary-color);
     margin-top: 0;
     margin-bottom: 15px;
-    font-size: 1.6em;
-    border-bottom: 1px solid var(--border-color);
+    font-size: 1.8em; /* Slightly larger heading for output */
+    border-bottom: 2px solid var(--primary-color); /* More prominent separator */
     padding-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Space for an icon next to heading */
+}
+
+.output-card h2::before {
+    content: '📋'; /* Clipboard icon for summary */
+    font-size: 1.2em;
 }
 
 .output-card p {
-    margin-bottom: 8px;
+    margin-bottom: 10px; /* More spacing for paragraphs */
 }
 
 .output-card strong {
     color: var(--text-dark);
 }
 
+/* Styling for key info sections within the card */
+.summary-section {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.summary-section:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.eligibility-status {
+    font-weight: bold;
+    font-size: 1.15em; /* More prominent */
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Space for icon */
+}
+
+.eligibility-status.eligible {
+    color: var(--success-color);
+}
+
+.eligibility-status.eligible::before {
+    content: '✅'; /* Green checkmark */
+    font-size: 1.2em;
+}
+
+.eligibility-status.not-eligible {
+    color: var(--danger-color);
+}
+
+.eligibility-status.not-eligible::before {
+    content: '❌'; /* Red cross */
+    font-size: 1.2em;
+}
+
+.failure-code-display {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: var(--text-dark);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.failure-code-display::before {
+    content: '💡'; /* Lightbulb icon */
+    font-size: 1.2em;
+}
+
+
 .output-card ul {
-    list-style: none; /* Remove default bullet points */
+    list-style: none;
     padding: 0;
     margin-top: 15px;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 15px;
 }
 
 .output-card ul li {
-    padding: 8px 0;
+    padding: 10px 0; /* More spacing */
     border-bottom: 1px dashed var(--border-color);
     display: flex;
-    align-items: center;
+    align-items: flex-start; /* Align icon to top if text wraps */
+    gap: 10px; /* Space between icon and text */
 }
 
 .output-card ul li:last-child {
     border-bottom: none;
 }
 
-/* Icons for list items (optional, but nice) */
 .output-card ul li::before {
     content: '📄'; /* Document icon */
-    margin-right: 10px;
     font-size: 1.2em;
+    flex-shrink: 0; /* Prevent icon from shrinking */
+    padding-top: 2px; /* Small adjustment for alignment */
 }
 
-/* Specific styles for eligibility */
-.eligible-status {
-    color: var(--success-color);
-    font-weight: bold;
-    font-size: 1.1em;
-}
-
-.not-eligible-status {
-    color: var(--danger-color);
-    font-weight: bold;
-    font-size: 1.1em;
-}
+/* Specific document icons (optional, but adds flair) */
+.output-card ul li:nth-child(1)::before { content: '🧾'; } /* Invoice/Receipt */
+.output-card ul li:nth-child(2)::before { content: '📸'; } /* Camera for image */
+.output-card ul li:nth-child(3)::before { content: '✍️'; } /* Pen for report */
+.output-card ul li:nth-child(4)::before { content: '🎧'; } /* Headphones for audio */
+.output-card ul li:nth-child(5)::before { content: '⚡'; } /* Spark for electrical */
