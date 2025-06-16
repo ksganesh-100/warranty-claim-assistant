@@ -1,4 +1,6 @@
-document.getElementById("claimForm").addEventListener("submit", function(event) {
+//Submit event for display
+
+document.getElementById("claimForm").addEventListener("submit", async function(event) {
   event.preventDefault();
 
   const product = document.getElementById("product").value.trim();
@@ -10,17 +12,17 @@ document.getElementById("claimForm").addEventListener("submit", function(event) 
   const ageInYears = (today - purchaseDate) / (1000 * 60 * 60 * 24 * 365);
   const eligible = ageInYears <= 2 ? "✅ Eligible" : "❌ Not Eligible";
 
-  // Simple failure code matching
-  let failureCode = "Unknown";
-  if (failure.includes("grind") && part.includes("gear")) failureCode = "F213 - Gearbox Synchronizer Failure";
-  else if (failure.includes("leak") && part.includes("hydraulic")) failureCode = "F107 - Hydraulic Seal Failure";
+  document.getElementById("status").textContent = "🔍 Asking Gemini to analyze failure...";
 
-  // Mock documentation recommendations
+  const failureCode = await getFailureCodeFromGemini(failure, part);
+
+  document.getElementById("status").textContent = "";
+
+  // Mock docs
   const docs = ["Service Order Invoice"];
   if (part.includes("gear")) docs.push("Image of Damaged Gearbox", "Dealer Inspection Report");
-  else if (part.includes("hydraulic")) docs.push("Leak Photo", "Service Technician Notes");
+  if (part.includes("hydraulic")) docs.push("Leak Photo", "Technician Report");
 
-  // Show result
   document.getElementById("output").innerHTML = `
     <h2>Warranty Claim Summary</h2>
     <p><strong>Product:</strong> ${product}</p>
@@ -32,6 +34,7 @@ document.getElementById("claimForm").addEventListener("submit", function(event) 
     <ul>${docs.map(d => `<li>${d}</li>`).join('')}</ul>
   `;
 });
+
 
 //  Code for adding Gemini based intelligence
 
