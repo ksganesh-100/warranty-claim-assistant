@@ -343,3 +343,19 @@ button:disabled {
     opacity: 1; /* Become fully opaque */
     transform: translateY(0); /* Move to its final position */
 }
+
+/* --- Styles for the Action Buttons Container --- */
+.output-actions {
+    margin-top: 25px;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 20px;
+    display: flex; /* Make this a flex container */
+    justify-content: flex-end; /* Align items to the end (right) of the container */
+    gap: 15px; /* Add space between the direct children (buttons) */
+    /* If you want them to wrap on smaller screens: flex-wrap: wrap; */
+}
+
+/* Optional: Adjust button sizes if they vary too much, or ensure consistent padding/font-size */
+.output-actions button {
+    flex-shrink: 0; /* Prevent buttons from shrinking if space is tight, maintaining their size */
+}
