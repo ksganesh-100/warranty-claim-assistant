@@ -1,0 +1,44 @@
+<html>
+  <body>
+    <form id="claimForm">
+      <input id="product" placeholder="Product"><br>
+      <input id="part" placeholder="Part"><br>
+      <input id="failure" placeholder="Failure Description"><br>
+      <input id="purchaseDate" type="date"><br>
+      <button type="submit">Submit</button>
+    </form>
+    <p id="status"></p>
+    <div id="output"></div>
+
+    <script>
+      document.getElementById("claimForm").addEventListener("submit", async function(event) {
+        event.preventDefault();
+        document.getElementById("status").textContent = "🔍 Asking Gemini to analyze failure...";
+
+        const failureCode = await getFailureCodeFromGemini("not shifting", "gearbox");
+        document.getElementById("output").innerText = "Failure code: " + failureCode;
+        document.getElementById("status").textContent = "";
+      });
+
+      async function getFailureCodeFromGemini(failureDescription, partName) {
+        const apiKey = 'AIzaSyBUHFr6rqFvPN6oqN25a_vfIXuORlDqnME';
+        const prompt = `What failure code matches "${failureDescription}" on "${partName}"? Pick one from:
+- F213
+- F107
+- F305
+- F412
+- F999`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+
+        const data = await response.json();
+        console.log(data);
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "F999";
+      }
+    </script>
+  </body>
+</html>
