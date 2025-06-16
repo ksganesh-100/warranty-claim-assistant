@@ -1,8 +1,8 @@
 console.log("Script loaded ✅");
 
 // --- Constants ---
-const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25; // Accounting for leap years for better accuracy
-const WARRANTY_PERIOD_YEARS = 2; // Example warranty period
+const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
+const WARRANTY_PERIOD_YEARS = 2;
 
 // --- DOM Elements ---
 const claimForm = document.getElementById("claimForm");
@@ -12,7 +12,7 @@ const failureInput = document.getElementById("failure");
 const purchaseDateInput = document.getElementById("purchaseDate");
 const statusMessage = document.getElementById("status");
 const outputDiv = document.getElementById("output");
-const resultsSection = document.getElementById("results-section"); // New section for output
+const resultsSection = document.getElementById("results-section");
 const generateClaimBtn = document.getElementById("generateClaimBtn");
 
 // --- Utility Functions ---
@@ -24,8 +24,6 @@ const generateClaimBtn = document.getElementById("generateClaimBtn");
  * @returns {Promise<string>} The best matching failure code and its name.
  */
 async function getFailureCodeFromGemini(failureDescription, partName) {
-    // IMPORTANT: In a real application, you would use a secure backend proxy
-    // to call the Gemini API, not expose your API key directly in frontend code.
     const apiKey = 'AIzaSyBUHFr6rqFvPN6oqN25a_vfIXuORlDqnME';
 
     const prompt = `
@@ -37,7 +35,7 @@ Return ONLY the best matching failure code from this list and its full name:
 - F412 - Bearing Wear and Tear
 - F999 - Unknown or Unclassified
 
-Example desired output: "F213 - Gearbox Synchronizer Failure"`; // Added example for clarity to Gemini
+Example desired output: "F213 - Gearbox Synchronizer Failure"`;
 
     try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
@@ -57,12 +55,10 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`; // Added example
         if (!response.ok) {
             const errorBody = await response.json();
             console.error("Gemini API error:", errorBody);
-            // Provide a user-friendly message for API errors
             return "F999 - Unknown (API Error)";
         }
 
         const data = await response.json();
-        // Accessing the text response safely
         const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "F999 - Unknown";
         return textResponse.trim();
     } catch (error) {
@@ -87,21 +83,24 @@ function getRequiredDocuments(part) {
     } else if (part.includes("bearing")) {
         docs.push("Sound/Video Recording of Noise", "Wear Analysis Report (if available)");
     }
-    return docs;
+    // Add a general "Other supporting evidence" for F999 or unspecific cases
+    docs.push("Any Other Supporting Evidence (e.g., fault codes)");
+    return Array.from(new Set(docs)); // Use Set to remove duplicates
 }
 
 
 // --- Event Listener ---
-if (claimForm) { // Ensure the form exists before adding listener
+if (claimForm) {
     claimForm.addEventListener("submit", async function(event) {
         event.preventDefault(); // Prevent default form submission
 
-        // Show the results section and clear previous output
-        resultsSection.style.display = 'block';
+        // 1. Initial UI Setup & Loading State
+        resultsSection.style.display = 'block'; // Make results section visible
         outputDiv.innerHTML = ''; // Clear previous results
-        statusMessage.textContent = ''; // Clear previous status
+        statusMessage.textContent = 'Processing claim...'; // Initial status
+        statusMessage.classList.add('loading'); // Add loading spinner class
 
-        // Disable button and inputs during processing
+        // Disable button and inputs
         generateClaimBtn.disabled = true;
         productInput.disabled = true;
         partInput.disabled = true;
@@ -114,44 +113,55 @@ if (claimForm) { // Ensure the form exists before adding listener
         const purchaseDate = new Date(purchaseDateInput.value);
         const today = new Date();
 
-        // Calculate product age
         const ageInYears = (today - purchaseDate) / MS_PER_YEAR;
-
-        // Determine eligibility
         const isEligible = ageInYears <= WARRANTY_PERIOD_YEARS;
-        const eligibleText = isEligible ? "Eligible" : "Not Eligible";
-        const eligibleClass = isEligible ? "eligible-status" : "not-eligible-status";
+        const eligibleText = isEligible ? "Covered Under Warranty" : "Not Eligible (Warranty Expired)";
+        const eligibleClass = isEligible ? "eligible" : "not-eligible"; // Class for visual styling
 
-        // Display status message while waiting for Gemini
-        statusMessage.textContent = "🔍 Analyzing failure description...";
+        let failureCode = "F999 - Unknown"; // Default until Gemini responds
 
-        // Get failure code from Gemini
-        const failureCode = await getFailureCodeFromGemini(failure, part);
+        // 2. Fetch Failure Code (Simulate progress)
+        statusMessage.textContent = "🔍 Analyzing failure description with AI...";
+        await new Promise(resolve => setTimeout(resolve, 800)); // Small delay for UX feel
+        failureCode = await getFailureCodeFromGemini(failure, part);
 
-        // Clear status message after Gemini response
-        statusMessage.textContent = "";
-
-        // Get required documents
+        // 3. Determine Documents
+        statusMessage.textContent = "📂 Compiling required documentation...";
+        await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UX feel
         const docs = getRequiredDocuments(part);
 
-        // Render the output
+        // 4. Render Output (with fade-in animation)
+        statusMessage.textContent = ""; // Clear status message
+        statusMessage.classList.remove('loading'); // Remove spinner
+
         outputDiv.innerHTML = `
             <h2>Warranty Claim Summary</h2>
-            <p><strong>Product:</strong> ${product}</p>
-            <p><strong>Part:</strong> ${part}</p>
-            <p><strong>Product Age:</strong> ${ageInYears.toFixed(1)} years</p>
-            <p><strong>Warranty Status:</strong> <span class="${eligibleClass}">${eligibleText}</span></p>
-            <p><strong>Failure Code:</strong> ${failureCode}</p>
-            <p><strong>Required Documentation:</strong></p>
-            <ul>${docs.map(d => `<li>${d}</li>`).join('')}</ul>
+            <div class="summary-section">
+                <p><strong>Product:</strong> ${product}</p>
+                <p><strong>Part:</strong> ${part}</p>
+                <p><strong>Product Age:</strong> ${ageInYears.toFixed(1)} years</p>
+                <p class="eligibility-status ${eligibleClass}">${eligibleText}</p>
+            </div>
+            <div class="summary-section">
+                <p><strong>AI Suggested Failure Code:</strong></p>
+                <p class="failure-code-display">${failureCode}</p>
+            </div>
+            <div class="summary-section">
+                <p><strong>Required Documentation:</strong></p>
+                <ul>${docs.map(d => `<li>${d}</li>`).join('')}</ul>
+            </div>
         `;
+        // The CSS animation (fadeSlideIn) will automatically apply when element is added
 
-        // Re-enable button and inputs
+        // 5. Re-enable form elements
         generateClaimBtn.disabled = false;
         productInput.disabled = false;
         partInput.disabled = false;
         failureInput.disabled = false;
         purchaseDateInput.disabled = false;
+
+        // Optional: Scroll to results for better UX on smaller screens
+        resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 } else {
     console.error("Claim form not found!");
