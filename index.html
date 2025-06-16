@@ -27,10 +27,16 @@
                            placeholder="e.g., 'Gearbox', 'Hydraulic Pump', 'Alternator'">
                 </div>
 
+               <div class="form-group">
+                    <label for="customerComplaint">Customer Complaint:</label>
+                    <textarea id="customerComplaint" name="customerComplaint" required
+                        placeholder="e.g., 'Car making a weird clunking sound.', 'AC not blowing cold air.'"></textarea>
+                </div>
+
                 <div class="form-group">
-                    <label for="failure">Failure Description:</label>
-                    <textarea id="failure" name="failure" required
-                              placeholder="e.g., 'Customer states gearbox makes a grinding noise shifting into 3rd gear intermittently.', 'Hydraulic fluid leak observed near cylinder rod, affecting lift operation.'"></textarea>
+                    <label for="technicianDiagnosis">Technician's Diagnosis / Root Cause:</label>
+                    <textarea id="technicianDiagnosis" name="technicianDiagnosis" required
+                        placeholder="e.g., 'Verified customer complaint. Found excessive play in left front wheel bearing. Bearing seized, causing grinding noise. DTC C0034 present.', 'Performed AC system evac/recharge. Found low pressure. Dye test revealed leak at condenser fitting. Condenser replaced.'"></textarea>
                 </div>
 
                 <div class="form-group">
