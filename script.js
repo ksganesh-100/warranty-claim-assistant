@@ -2,13 +2,60 @@ console.log("Script loaded ✅");
 
 // --- Constants ---
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
-const WARRANTY_PERIOD_YEARS = 2;
+// We'll now use simulated OEM data for warranty period, but this remains a fallback or default
+const DEFAULT_WARRANTY_PERIOD_YEARS = 2; // This is now a default/fallback
+const TYPING_DELAY = 25; // Milliseconds per character for status message typing
+const STEP_DELAY = 1000; // Milliseconds between major steps (pause duration)
+
+// --- Local AI Knowledge Base (Simulated) ---
+// This dataset is used for the client-side preliminary AI analysis
+const FAILURE_CODES_LOCAL = [
+    {
+        code: "F213",
+        name: "Gearbox Synchronizer Failure",
+        keywords: ["gearbox", "synchronizer", "shift", "grind", "engage", "transmission", "stuck"],
+        parts: ["gearbox", "transmission", "synchronizer"],
+        baseConfidence: 70
+    },
+    {
+        code: "F107",
+        name: "Hydraulic Seal Failure",
+        keywords: ["hydraulic", "seal", "leak", "fluid", "cylinder", "pump", "pressure", "sag"],
+        parts: ["hydraulic", "pump", "cylinder", "actuator"],
+        baseConfidence: 75
+    },
+    {
+        code: "F305",
+        name: "Electrical Wiring Burnout",
+        keywords: ["electrical", "wiring", "burn", "smoke", "smell", "fuse", "circuit", "short", "power", "unresponsive"],
+        parts: ["electrical", "wiring", "harness", "module", "circuit board", "battery"],
+        baseConfidence: 65
+    },
+    {
+        code: "F412",
+        name: "Bearing Wear and Tear",
+        keywords: ["bearing", "wear", "noise", "vibration", "grind", "rattle", "wheel", "pulley", "axle", "loose"],
+        parts: ["bearing", "wheel", "axle", "pulley", "hub", "spindle"],
+        baseConfidence: 80
+    },
+    {
+        code: "F999",
+        name: "Unknown or Unclassified",
+        keywords: [], // No specific keywords, acts as a fallback
+        parts: [],
+        baseConfidence: 30
+    }
+];
+
 
 // --- DOM Elements ---
 const claimForm = document.getElementById("claimForm");
 const productInput = document.getElementById("product");
 const partInput = document.getElementById("part");
-const failureInput = document.getElementById("failure");
+const vinInput = document.getElementById("vin"); // NEW
+const odometerInput = document.getElementById("odometer"); // NEW
+const customerComplaintInput = document.getElementById("customerComplaint"); // RENAMED
+const technicianDiagnosisInput = document.getElementById("technicianDiagnosis"); // NEW
 const purchaseDateInput = document.getElementById("purchaseDate");
 const statusMessage = document.getElementById("status");
 const outputDiv = document.getElementById("output");
@@ -18,22 +65,48 @@ const generateClaimBtn = document.getElementById("generateClaimBtn");
 // --- Utility Functions ---
 
 /**
- * Calls the Gemini API to get a failure code based on description and part.
- * @param {string} failureDescription - The customer's description of the failure.
+ * Animates text appearing in an element, character by character.
+ * @param {HTMLElement} element - The DOM element to write into.
+ * @param {string} text - The text to animate.
+ * @param {number} delay - Delay in milliseconds per character.
+ */
+async function animateText(element, text, delay = TYPING_DELAY) {
+    element.textContent = ''; // Clear existing text
+    for (let i = 0; i < text.length; i++) {
+        element.textContent += text.charAt(i);
+        await new Promise(resolve => setTimeout(resolve, delay));
+    }
+}
+
+/**
+ * Helper to pause execution for a given duration.
+ * @param {number} ms - Milliseconds to pause.
+ */
+function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Calls the Gemini API to get a failure code based on technician diagnosis and part.
+ * @param {string} technicianDiagnosis - The technician's detailed diagnosis.
  * @param {string} partName - The name of the part involved.
  * @returns {Promise<string>} The best matching failure code and its name.
  */
-async function getFailureCodeFromGemini(failureDescription, partName) {
-    const apiKey = 'AIzaSyBUHFr6rqFvPN6oqN25a_vfIXuORlDqnME';
+async function getFailureCodeFromGemini(technicianDiagnosis, partName) {
+    const apiKey = 'AIzaSyBUHFr6rqFvPN6oqN25a_vfIXuORlDqnME'; // Replace with your actual Gemini API Key
 
     const prompt = `
-You are a warranty engineer assistant. A customer reports: "${failureDescription}" involving part "${partName}".
-Return ONLY the best matching failure code from this list and its full name:
+You are a highly specialized automotive warranty engineer assistant.
+Based on the following technician's diagnosis: "${technicianDiagnosis}" and the part involved: "${partName}",
+return ONLY the best matching warranty failure code and its full name from this list.
+Focus strictly on the diagnostic and root cause information provided.
+
+Failure Codes:
 - F213 - Gearbox Synchronizer Failure
 - F107 - Hydraulic Seal Failure
 - F305 - Electrical Wiring Burnout
 - F412 - Bearing Wear and Tear
-- F999 - Unknown or Unclassified
+- F999 - Unknown or Unclassified (Use if no clear match)
 
 Example desired output: "F213 - Gearbox Synchronizer Failure"`;
 
@@ -68,23 +141,87 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
 }
 
 /**
- * Determines required documentation based on part name.
+ * Simulates a local AI match with confidence and matched keywords based on technician's diagnosis.
+ * This is a simplified keyword matching for demo purposes.
+ * @param {string} diagnosis - The technician's diagnosis.
  * @param {string} part - The part name.
+ * @returns {{code: string, name: string, confidence: number, matchedKeywords: string[]}}
+ */
+function getSimulatedFailureCode(diagnosis, part) {
+    // Combine diagnosis and part for tokenization
+    const tokens = new Set([...diagnosis.split(/\s+/), ...part.split(/\s+/)].map(t => t.toLowerCase().replace(/[^a-z0-9]/g, '')));
+    let bestMatch = { code: "F999", name: "Unknown or Unclassified", confidence: 30, matchedKeywords: [] };
+    let highestScore = -1;
+
+    for (const failureType of FAILURE_CODES_LOCAL) {
+        let score = 0;
+        const currentMatchedKeywords = [];
+
+        // Score based on keywords in diagnosis
+        for (const keyword of failureType.keywords) {
+            if (tokens.has(keyword)) {
+                score += 10;
+                currentMatchedKeywords.push(keyword);
+            }
+        }
+
+        // Score based on part name
+        for (const partKeyword of failureType.parts) {
+            if (part.includes(partKeyword)) {
+                score += 15; // Higher weight for part match
+                if (!currentMatchedKeywords.includes(partKeyword)) {
+                    currentMatchedKeywords.push(partKeyword);
+                }
+            }
+        }
+
+        // Add base confidence
+        score += failureType.baseConfidence;
+
+        // Apply a penalty if part-specific keywords were expected but not found in the diagnosis
+        if (failureType.parts.length > 0 && currentMatchedKeywords.filter(k => failureType.parts.includes(k)).length === 0) {
+             score = Math.max(score - 10, 0);
+        }
+
+        if (score > highestScore) {
+            highestScore = score;
+            // Cap confidence at 100
+            bestMatch = {
+                code: failureType.code,
+                name: failureType.name,
+                confidence: Math.min(100, score),
+                matchedKeywords: Array.from(new Set(currentMatchedKeywords)) // Ensure unique keywords
+            };
+        }
+    }
+    return bestMatch;
+}
+
+/**
+ * Determines required documentation based on part name and diagnosis.
+ * @param {string} part - The part name.
+ * @param {string} diagnosis - The technician's diagnosis.
  * @returns {string[]} An array of required document names.
  */
-function getRequiredDocuments(part) {
-    const docs = ["Service Order Invoice"];
-    if (part.includes("gear")) {
-        docs.push("Image of Damaged Gearbox", "Dealer Inspection Report");
-    } else if (part.includes("hydraulic")) {
-        docs.push("Leak Photo", "Technician Report");
-    } else if (part.includes("electrical") || part.includes("wiring") || part.includes("circuit")) {
-        docs.push("Circuit Diagram", "Photo of Burnt Area (if visible)");
-    } else if (part.includes("bearing")) {
-        docs.push("Sound/Video Recording of Noise", "Wear Analysis Report (if available)");
+function getRequiredDocuments(part, diagnosis) {
+    const docs = ["Completed Service Order Form (with VIN/Serial No.)", "Customer Complaint Narrative (signed/verified)"];
+
+    // Add general diagnostic report
+    if (diagnosis.length > 20) { // If diagnosis is substantive
+        docs.push("Technician's Detailed Diagnostic Report");
     }
-    // Add a general "Other supporting evidence" for F999 or unspecific cases
-    docs.push("Any Other Supporting Evidence (e.g., fault codes)");
+
+    // Specific documentation based on part or diagnosis keywords
+    if (part.includes("gear") || part.includes("transmission") || part.includes("synchronizer")) {
+        docs.push("High-Resolution Photo/Video of Damaged Gearbox Components", "Dealer Diagnostic Report (including DTCs if any)");
+    } else if (part.includes("hydraulic") || part.includes("cylinder") || part.includes("pump") || part.includes("seal") || diagnosis.includes("leak")) {
+        docs.push("High-Resolution Leak Photo (clearly showing fluid source and path)", "Technician's Operational Test Report (e.g., pressure readings)");
+    } else if (part.includes("electrical") || part.includes("wiring") || part.includes("circuit") || part.includes("module") || diagnosis.includes("electrical") || diagnosis.includes("fuse")) {
+        docs.push("Circuit Diagram or Schematic Reference", "Photo of Burnt Area / Physical Damage (if visible)", "Diagnostic Trouble Codes (DTCs) from ECU");
+    } else if (part.includes("bearing") || part.includes("wheel") || part.includes("axle") || part.includes("hub") || diagnosis.includes("noise") || diagnosis.includes("vibration")) {
+        docs.push("Sound/Video Recording of Anomalous Noise (e.g., grinding)", "Bearing Play/Runout Measurement Report");
+    }
+    docs.push("Any Other Relevant Supporting Evidence (e.g., historical service records, specific test results)"); // Always include
     return Array.from(new Set(docs)); // Use Set to remove duplicates
 }
 
@@ -92,75 +229,209 @@ function getRequiredDocuments(part) {
 // --- Event Listener ---
 if (claimForm) {
     claimForm.addEventListener("submit", async function(event) {
-        event.preventDefault(); // Prevent default form submission
+        event.preventDefault();
 
         // 1. Initial UI Setup & Loading State
-        resultsSection.style.display = 'block'; // Make results section visible
-        outputDiv.innerHTML = ''; // Clear previous results
-        statusMessage.textContent = 'Processing claim...'; // Initial status
-        statusMessage.classList.add('loading'); // Add loading spinner class
+        resultsSection.style.display = 'block';
+        outputDiv.innerHTML = `<h2>Warranty Claim Summary</h2>`; // Start with just the main heading
+        statusMessage.textContent = '';
+        statusMessage.classList.add('loading');
 
-        // Disable button and inputs
+        // Disable form elements to prevent re-submission
         generateClaimBtn.disabled = true;
         productInput.disabled = true;
         partInput.disabled = true;
-        failureInput.disabled = true;
+        vinInput.disabled = true;
+        odometerInput.disabled = true;
+        customerComplaintInput.disabled = true;
+        technicianDiagnosisInput.disabled = true;
         purchaseDateInput.disabled = true;
 
+        // Get input values
         const product = productInput.value.trim();
         const part = partInput.value.trim().toLowerCase();
-        const failure = failureInput.value.trim().toLowerCase();
-        const purchaseDate = new Date(purchaseDateInput.value);
+        const vin = vinInput.value.trim().toUpperCase(); // VINs are uppercase
+        const odometer = parseInt(odometerInput.value);
+        const customerComplaint = customerComplaintInput.value.trim().toLowerCase();
+        const technicianDiagnosis = technicianDiagnosisInput.value.trim().toLowerCase();
+        const purchaseDate = new Date(purchaseDateInput.value); // This is just the customer's stated purchase date
+
         const today = new Date();
+        const productAgeInYearsFromPurchase = (today - purchaseDate) / MS_PER_YEAR;
 
-        const ageInYears = (today - purchaseDate) / MS_PER_YEAR;
-        const isEligible = ageInYears <= WARRANTY_PERIOD_YEARS;
-        const eligibleText = isEligible ? "Covered Under Warranty" : "Not Eligible (Warranty Expired)";
-        const eligibleClass = isEligible ? "eligible" : "not-eligible"; // Class for visual styling
 
-        let failureCode = "F999 - Unknown"; // Default until Gemini responds
+        // --- Theatrical Agent Steps ---
 
-        // 2. Fetch Failure Code (Simulate progress)
-        statusMessage.textContent = "🔍 Analyzing failure description with AI...";
-        await new Promise(resolve => setTimeout(resolve, 800)); // Small delay for UX feel
-        failureCode = await getFailureCodeFromGemini(failure, part);
+        // Step 1: Gathering Customer & Vehicle Data
+        await animateText(statusMessage, "1. Gathering customer & vehicle data: VIN, Odometer, Product & Part details...");
+        await wait(STEP_DELAY);
 
-        // 3. Determine Documents
-        statusMessage.textContent = "📂 Compiling required documentation...";
-        await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UX feel
-        const docs = getRequiredDocuments(part);
-
-        // 4. Render Output (with fade-in animation)
-        statusMessage.textContent = ""; // Clear status message
-        statusMessage.classList.remove('loading'); // Remove spinner
-
-        outputDiv.innerHTML = `
-            <h2>Warranty Claim Summary</h2>
-            <div class="summary-section">
+        outputDiv.innerHTML += `
+            <div class="summary-section" id="section-claim-info">
                 <p><strong>Product:</strong> ${product}</p>
                 <p><strong>Part:</strong> ${part}</p>
-                <p><strong>Product Age:</strong> ${ageInYears.toFixed(1)} years</p>
-                <p class="eligibility-status ${eligibleClass}">${eligibleText}</p>
+                <p><strong>VIN:</strong> ${vin}</p>
+                <p><strong>Odometer:</strong> ${odometer.toLocaleString()} miles</p>
+                <p><strong>Customer Stated Purchase Date:</strong> ${purchaseDate.toLocaleDateString()}</p>
+                <p><strong>Customer Complaint:</strong> "${customerComplaint}"</p>
+                <p><strong>Technician's Diagnosis:</strong> "${technicianDiagnosis}"</p>
             </div>
-            <div class="summary-section">
-                <p><strong>AI Suggested Failure Code:</strong></p>
-                <p class="failure-code-display">${failureCode}</p>
+        `;
+        await wait(50); // Small pause for DOM update
+        document.getElementById('section-claim-info').classList.add('visible');
+        await wait(STEP_DELAY); // Pause after reveal
+
+
+        // Step 2: Cross-referencing VIN with OEM Policy and Eligibility Check
+        await animateText(statusMessage, "2. Cross-referencing VIN with OEM warranty policies & verifying eligibility...");
+        await wait(STEP_DELAY);
+
+        // --- Simulated OEM Data Lookup (Highly theatrical for the demo!) ---
+        // In a real system, this would be an API call to an OEM database.
+        const simulatedOEMData = {
+            inServiceDate: new Date(purchaseDate.getFullYear(), purchaseDate.getMonth(), purchaseDate.getDate() + 30), // Simulate a common 30-day delay for registration
+            warrantyType: "Bumper-to-Bumper Warranty",
+            standardWarrantyYears: 3,
+            standardWarrantyMiles: 36000
+        };
+
+        // Calculate eligibility based on simulated OEM data
+        const actualInServiceDate = simulatedOEMData.inServiceDate;
+        const yearsSinceInService = (today - actualInServiceDate) / MS_PER_YEAR;
+
+        const isEligibleByDate = yearsSinceInService <= simulatedOEMData.standardWarrantyYears;
+        const isEligibleByMileage = odometer <= simulatedOEMData.standardWarrantyMiles;
+        const isEligibleFinal = isEligibleByDate && isEligibleByMileage;
+
+        const eligibilityDetails = [];
+        eligibilityDetails.push(`Date Check: ${yearsSinceInService.toFixed(1)} yrs (Max ${simulatedOEMData.standardWarrantyYears} yrs) - ${isEligibleByDate ? '✅ Covered' : '❌ Expired'}`);
+        eligibilityDetails.push(`Mileage Check: ${odometer.toLocaleString()} miles (Max ${simulatedOEMData.standardWarrantyMiles.toLocaleString()} miles) - ${isEligibleByMileage ? '✅ Covered' : '❌ Exceeded'}`);
+
+        const finalEligibleText = isEligibleFinal ? "Eligible for Warranty Coverage" : "Not Eligible for Warranty Coverage";
+        const finalEligibleClass = isEligibleFinal ? "eligible" : "not-eligible";
+
+        outputDiv.innerHTML += `
+            <div class="summary-section" id="section-eligibility">
+                <p><strong>OEM Warranty Policy Found:</strong> ${simulatedOEMData.warrantyType} (${simulatedOEMData.standardWarrantyYears} Years / ${simulatedOEMData.standardWarrantyMiles.toLocaleString()} Miles)</p>
+                <p><strong>Vehicle In-Service Date:</strong> ${actualInServiceDate.toLocaleDateString()}</p>
+                <p class="eligibility-status ${finalEligibleClass}">
+                    ${finalEligibleText}
+                    <small style="font-weight: normal; margin-left: 10px; color: var(--text-light);">
+                        <ul>
+                            ${eligibilityDetails.map(detail => `<li>${detail}</li>`).join('')}
+                        </ul>
+                    </small>
+                </p>
             </div>
-            <div class="summary-section">
+        `;
+        await wait(50);
+        document.getElementById('section-eligibility').classList.add('visible');
+        await wait(STEP_DELAY);
+
+
+        // Step 3: Checking for relevant Technical Service Bulletins (TSBs) and Recalls
+        await animateText(statusMessage, "3. Checking for relevant Technical Service Bulletins (TSBs) and Recalls...");
+        await wait(STEP_DELAY);
+
+        // Simulate TSB/Recall lookup based on product/part/diagnosis
+        let tsbInfo = "No active TSBs or Recalls found for this specific issue or VIN.";
+        if (product.toLowerCase().includes("tractor x120") && part.includes("gearbox") && technicianDiagnosis.includes("grinding")) {
+            tsbInfo = "<strong>Found TSB 24-005-TRX:</strong> Gearbox Synchronizer Grinding Noise. Refer to bulletin for updated diagnostic procedure and parts.";
+        } else if (product.toLowerCase().includes("model s sedan") && technicianDiagnosis.includes("leak") && part.includes("hydraulic")) {
+            tsbInfo = "<strong>Found Recall 23V-123:</strong> Hydraulic Hose Leak Inspection. Immediate repair required per recall guidelines.";
+        } else if (technicianDiagnosis.includes("electrical") && technicianDiagnosis.includes("smoke")) {
+            tsbInfo = "<strong>Found TSB EL-2023-015:</strong> Wiring Harness Inspection for Overheating. Check for affected production dates.";
+        }
+
+        outputDiv.innerHTML += `
+            <div class="summary-section" id="section-tsb">
+                <p><strong>Technical Service Bulletins / Recalls:</strong></p>
+                <p>${tsbInfo}</p>
+            </div>
+        `;
+        await wait(50);
+        document.getElementById('section-tsb').classList.add('visible');
+        await wait(STEP_DELAY);
+
+
+        // Step 4: Performing Initial Local AI Analysis on Technician's Diagnosis
+        await animateText(statusMessage, "4. Performing initial local AI analysis on Technician's Diagnosis for preliminary insights...");
+        await wait(STEP_DELAY);
+        simulatedFailureMatch = getSimulatedFailureCode(technicianDiagnosis, part); // Use technicianDiagnosis here!
+
+        const keywordsHtml = simulatedFailureMatch.matchedKeywords.length > 0
+            ? `<p class="matched-keywords">Matched keywords: ${simulatedFailureMatch.matchedKeywords.map(k => `<span>${k}</span>`).join('')}</p>`
+            : `<p class="matched-keywords">No specific keywords matched locally.</p>`;
+
+        outputDiv.innerHTML += `
+            <div class="summary-section" id="section-local-ai">
+                <p><strong>Local AI Preliminary Suggestion:</strong></p>
+                <p class="failure-code-display">${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}</p>
+                <p class="confidence-score">Confidence: ${simulatedFailureMatch.confidence}%</p>
+                ${keywordsHtml}
+            </div>
+        `;
+        await wait(50);
+        document.getElementById('section-local-ai').classList.add('visible');
+        await wait(STEP_DELAY);
+
+
+        // Step 5: Consulting Advanced AI (Gemini) for definitive failure code
+        await animateText(statusMessage, "5. Consulting advanced Gemini AI for definitive failure code based on diagnostic details...");
+        await wait(STEP_DELAY);
+        geminiFailureCode = await getFailureCodeFromGemini(technicianDiagnosis, part); // Use technicianDiagnosis here!
+
+        // Append to the local AI section or create new if you prefer
+        // For theatrical demo, let's update the existing section
+        const localAiSection = document.getElementById('section-local-ai');
+        if (localAiSection) {
+            localAiSection.innerHTML += `
+                <p style="margin-top: 15px;"><strong>Gemini AI Confirmed Failure Code:</strong></p>
+                <p class="failure-code-display" style="color: var(--primary-color);">${geminiFailureCode}</p>
+            `;
+        }
+        await wait(STEP_DELAY);
+
+
+        // Step 6: Compiling Required Documentation
+        await animateText(statusMessage, "6. Compiling necessary documentation requirements...");
+        await wait(STEP_DELAY);
+        const docs = getRequiredDocuments(part, technicianDiagnosis); // Pass diagnosis to getRequiredDocuments
+
+        outputDiv.innerHTML += `
+            <div class="summary-section" id="section-docs">
                 <p><strong>Required Documentation:</strong></p>
                 <ul>${docs.map(d => `<li>${d}</li>`).join('')}</ul>
             </div>
         `;
-        // The CSS animation (fadeSlideIn) will automatically apply when element is added
+        await wait(50);
+        document.getElementById('section-docs').classList.add('visible');
+        await wait(STEP_DELAY);
 
-        // 5. Re-enable form elements
+        // Final Step: Analysis Complete & Call to Action
+        await animateText(statusMessage, "✅ Warranty claim analysis complete! Ready for Submission.");
+        statusMessage.classList.remove('loading');
+        await wait(STEP_DELAY / 2);
+
+        // Add final action buttons
+        outputDiv.innerHTML += `
+            <div style="margin-top: 25px; text-align: right; border-top: 1px dashed var(--border-color); padding-top: 20px;">
+                <button class="button" type="button" onclick="alert('In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
+                <button class="secondary-btn" type="button" onclick="alert('In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
+            </div>
+        `;
+
+        // Re-enable form elements
         generateClaimBtn.disabled = false;
         productInput.disabled = false;
         partInput.disabled = false;
-        failureInput.disabled = false;
+        vinInput.disabled = false;
+        odometerInput.disabled = false;
+        customerComplaintInput.disabled = false;
+        technicianDiagnosisInput.disabled = false;
         purchaseDateInput.disabled = false;
 
-        // Optional: Scroll to results for better UX on smaller screens
+        // Scroll to results for better UX on smaller screens
         resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 } else {
