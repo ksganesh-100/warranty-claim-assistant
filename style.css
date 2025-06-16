@@ -327,3 +327,19 @@ button:disabled {
 .output-card ul li:nth-child(4)::before { content: '🎧'; }
 .output-card ul li:nth-child(5)::before { content: '⚡'; }
 .output-card ul li:nth-child(6)::before { content: '🔎'; } /* For "Other Supporting Evidence" */
+
+/* --- NEW: Styles for Progressive Section Reveal --- */
+
+/* Make individual summary sections initially hidden for progressive reveal */
+.output-card .summary-section {
+    opacity: 0; /* Start completely transparent */
+    transform: translateY(10px); /* Start slightly below its final position */
+    /* Add a smooth transition for opacity and transform properties */
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+/* Class to apply via JavaScript to show sections with animation */
+.output-card .summary-section.visible {
+    opacity: 1; /* Become fully opaque */
+    transform: translateY(0); /* Move to its final position */
+}
