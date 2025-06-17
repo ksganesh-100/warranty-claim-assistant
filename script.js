@@ -391,32 +391,48 @@ if (claimForm) {
 
 
         // Step 6: Compiling Required Documentation
-        await animateText(statusMessage, "6. Compiling required claim documentation...");
+        await animateText(statusMessage, "6. Compiling required claim documentation..."); // SLIGHT TWEAK TO STATUS MESSAGE
         await wait(STEP_DELAY);
-        const docs = getRequiredDocuments(part, technicianDiagnosis);
-
-        outputDiv.innerHTML += `
-            <div class="summary-section" id="section-docs">
-                <p><strong>Required Claim Documentation:</strong></p>
-                <ul>${docs.map(d => `<li>${d}</li>`).join('')}</ul>
-            </div>
-        `;
-        await wait(50);
-        document.getElementById('section-docs').classList.add('visible');
-        await wait(STEP_DELAY);
+        
+        // ONLY SHOW DOCUMENTATION IF ELIGIBLE
+        if (isEligibleFinal) { // <--- ADD THIS IF CONDITION
+            const docs = getRequiredDocuments(part, technicianDiagnosis);
+        
+            outputDiv.innerHTML += `
+                <div class="summary-section" id="section-docs">
+                    <p><strong>Required Claim Documentation:</strong></p>
+                    <ul>${docs.map(d => `<li>${d}</li>`).join('')}</ul>
+                </div>
+            `;
+            await wait(50);
+            document.getElementById('section-docs').classList.add('visible');
+            await wait(STEP_DELAY);
+        } else { // <--- ADD THIS ELSE BLOCK
+            await animateText(statusMessage, "6. Vehicle not in warranty. Skipping claim-specific documentation.");
+            await wait(STEP_DELAY);
+        }
 
         // Final Step: Analysis Complete & Call to Action
         await animateText(statusMessage, "✅ Warranty claim analysis complete! Ready for Submission.");
         statusMessage.classList.remove('loading');
         await wait(STEP_DELAY / 2);
-
-        // Add final action buttons with the 'output-actions' class
-        outputDiv.innerHTML += `
-            <div class="output-actions">
-                <button class="button" type="button" onclick="alert('In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
-                <button class="secondary-btn" type="button" onclick="alert('In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
-            </div>
-        `;
+        
+        // ONLY SHOW BUTTONS IF ELIGIBLE
+        if (isEligibleFinal) { // <--- ADD THIS IF CONDITION
+            // Add final action buttons with the 'output-actions' class
+            outputDiv.innerHTML += `
+                <div class="output-actions">
+                    <button class="button" type="button" onclick="alert('In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
+                    <button class="secondary-btn" type="button" onclick="alert('In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
+                </div>
+            `;
+        } else { // <--- ADD THIS ELSE BLOCK
+            outputDiv.innerHTML += `
+                <div class="output-actions">
+                    <p style="text-align: center; color: var(--text-dark); font-style: italic;">Vehicle is not under warranty. This process would typically transition to a customer-pay repair or goodwill request.</p>
+                </div>
+            `;
+        }
 
         // Re-enable form elements
         generateClaimBtn.disabled = false;
