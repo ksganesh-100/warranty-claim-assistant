@@ -2,8 +2,6 @@ console.log("Script loaded ✅");
 
 // --- Constants ---
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
-// We'll now use simulated OEM data for warranty period, but this remains a fallback or default
-const DEFAULT_WARRANTY_PERIOD_YEARS = 2; // This is now a default/fallback
 const TYPING_DELAY = 25; // Milliseconds per character for status message typing
 const STEP_DELAY = 1000; // Milliseconds between major steps (pause duration)
 
@@ -52,10 +50,10 @@ const FAILURE_CODES_LOCAL = [
 const claimForm = document.getElementById("claimForm");
 const productInput = document.getElementById("product");
 const partInput = document.getElementById("part");
-const vinInput = document.getElementById("vin"); // NEW
-const odometerInput = document.getElementById("odometer"); // NEW
-const customerComplaintInput = document.getElementById("customerComplaint"); // RENAMED
-const technicianDiagnosisInput = document.getElementById("technicianDiagnosis"); // NEW
+const vinInput = document.getElementById("vin");
+const odometerInput = document.getElementById("odometer");
+const customerComplaintInput = document.getElementById("customerComplaint");
+const technicianDiagnosisInput = document.getElementById("technicianDiagnosis");
 const purchaseDateInput = document.getElementById("purchaseDate");
 const statusMessage = document.getElementById("status");
 const outputDiv = document.getElementById("output");
@@ -90,10 +88,10 @@ function wait(ms) {
  * Calls the Gemini API to get a failure code based on technician diagnosis and part.
  * @param {string} technicianDiagnosis - The technician's detailed diagnosis.
  * @param {string} partName - The name of the part involved.
- * @returns {Promise<string>} The best matching failure code and its name.
+ * @returns {Promise<string>} The best matching failure code and its full name.
  */
 async function getFailureCodeFromGemini(technicianDiagnosis, partName) {
-    const apiKey = 'AIzaSyBUHFr6rqFvPN6oqN25a_vfIXuORlDqnME'; // Replace with your actual Gemini API Key
+    const apiKey = 'YOUR_GEMINI_API_KEY'; // Replace with your actual Gemini API Key
 
     const prompt = `
 You are a highly specialized automotive warranty engineer assistant.
@@ -204,7 +202,7 @@ function getSimulatedFailureCode(diagnosis, part) {
  * @returns {string[]} An array of required document names.
  */
 function getRequiredDocuments(part, diagnosis) {
-    const docs = ["Completed Service Order Form (with VIN/Serial No.)", "Customer Complaint Narrative (signed/verified)"];
+    const docs = ["Completed Service Order Form (with VIN/Serial No.)", "Customer Concern Narrative (signed/verified)"];
 
     // Add general diagnostic report
     if (diagnosis.length > 20) { // If diagnosis is substantive
@@ -257,24 +255,23 @@ if (claimForm) {
         const purchaseDate = new Date(purchaseDateInput.value); // This is just the customer's stated purchase date
 
         const today = new Date();
-        const productAgeInYearsFromPurchase = (today - purchaseDate) / MS_PER_YEAR;
 
 
         // --- Theatrical Agent Steps ---
 
         // Step 1: Gathering Customer & Vehicle Data
-        await animateText(statusMessage, "1. Gathering customer & vehicle data: VIN, Odometer, Product & Part details...");
+        await animateText(statusMessage, "1. Gathering customer & vehicle data: VIN, Odometer, Product & Component details...");
         await wait(STEP_DELAY);
 
         outputDiv.innerHTML += `
             <div class="summary-section" id="section-claim-info">
-                <p><strong>Product:</strong> ${product}</p>
-                <p><strong>Part:</strong> ${part}</p>
+                <p><strong>Product Model:</strong> ${product}</p>
+                <p><strong>Affected Component:</strong> ${part}</p>
                 <p><strong>VIN:</strong> ${vin}</p>
-                <p><strong>Odometer:</strong> ${odometer.toLocaleString()} miles</p>
-                <p><strong>Customer Stated Purchase Date:</strong> ${purchaseDate.toLocaleDateString()}</p>
-                <p><strong>Customer Complaint:</strong> "${customerComplaint}"</p>
-                <p><strong>Technician's Diagnosis:</strong> "${technicianDiagnosis}"</p>
+                <p><strong>Odometer Reading:</strong> ${odometer.toLocaleString()} miles</p>
+                <p><strong>Customer Reported Purchase Date:</strong> ${purchaseDate.toLocaleDateString()}</p>
+                <p><strong>Customer Concern / Reported Symptom:</strong> "${customerComplaint}"</p>
+                <p><strong>Technician's Findings & Root Cause:</strong> "${technicianDiagnosis}"</p>
             </div>
         `;
         await wait(50); // Small pause for DOM update
@@ -304,18 +301,18 @@ if (claimForm) {
         const isEligibleFinal = isEligibleByDate && isEligibleByMileage;
 
         const eligibilityDetails = [];
-        eligibilityDetails.push(`Date Check: ${yearsSinceInService.toFixed(1)} yrs (Max ${simulatedOEMData.standardWarrantyYears} yrs) - ${isEligibleByDate ? '✅ Covered' : '❌ Expired'}`);
-        eligibilityDetails.push(`Mileage Check: ${odometer.toLocaleString()} miles (Max ${simulatedOEMData.standardWarrantyMiles.toLocaleString()} miles) - ${isEligibleByMileage ? '✅ Covered' : '❌ Exceeded'}`);
+        eligibilityDetails.push(`<strong>Coverage Term (Time):</strong> ${yearsSinceInService.toFixed(1)} yrs (Max ${simulatedOEMData.standardWarrantyYears} yrs) - ${isEligibleByDate ? '✅ Covered' : '❌ Expired'}`);
+        eligibilityDetails.push(`<strong>Coverage Term (Mileage):</strong> ${odometer.toLocaleString()} miles (Max ${simulatedOEMData.standardWarrantyMiles.toLocaleString()} miles) - ${isEligibleByMileage ? '✅ Covered' : '❌ Exceeded'}`);
 
         const finalEligibleText = isEligibleFinal ? "Eligible for Warranty Coverage" : "Not Eligible for Warranty Coverage";
         const finalEligibleClass = isEligibleFinal ? "eligible" : "not-eligible";
 
         outputDiv.innerHTML += `
             <div class="summary-section" id="section-eligibility">
-                <p><strong>OEM Warranty Policy Found:</strong> ${simulatedOEMData.warrantyType} (${simulatedOEMData.standardWarrantyYears} Years / ${simulatedOEMData.standardWarrantyMiles.toLocaleString()} Miles)</p>
+                <p><strong>Applicable OEM Warranty Program:</strong> ${simulatedOEMData.warrantyType} (${simulatedOEMData.standardWarrantyYears} Years / ${simulatedOEMData.standardWarrantyMiles.toLocaleString()} Miles)</p>
                 <p><strong>Vehicle In-Service Date:</strong> ${actualInServiceDate.toLocaleDateString()}</p>
                 <p class="eligibility-status ${finalEligibleClass}">
-                    ${finalEligibleText}
+                    <strong>Claim Eligibility Status:</strong> ${finalEligibleText}
                     <small style="font-weight: normal; margin-left: 10px; color: var(--text-light);">
                         <ul>
                             ${eligibilityDetails.map(detail => `<li>${detail}</li>`).join('')}
@@ -330,7 +327,7 @@ if (claimForm) {
 
 
         // Step 3: Checking for relevant Technical Service Bulletins (TSBs) and Recalls
-        await animateText(statusMessage, "3. Checking for relevant Technical Service Bulletins (TSBs) and Recalls...");
+        await animateText(statusMessage, "3. Checking for relevant TSBs & Recalls based on VIN and diagnosis...");
         await wait(STEP_DELAY);
 
         // Simulate TSB/Recall lookup based on product/part/diagnosis
@@ -345,7 +342,7 @@ if (claimForm) {
 
         outputDiv.innerHTML += `
             <div class="summary-section" id="section-tsb">
-                <p><strong>Technical Service Bulletins / Recalls:</strong></p>
+                <p><strong>Relevant TSBs / Recalls:</strong></p>
                 <p>${tsbInfo}</p>
             </div>
         `;
@@ -355,9 +352,9 @@ if (claimForm) {
 
 
         // Step 4: Performing Initial Local AI Analysis on Technician's Diagnosis
-        await animateText(statusMessage, "4. Performing initial local AI analysis on Technician's Diagnosis for preliminary insights...");
+        await animateText(statusMessage, "4. Performing preliminary AI analysis on Technician's Diagnosis for failure mode suggestion...");
         await wait(STEP_DELAY);
-        simulatedFailureMatch = getSimulatedFailureCode(technicianDiagnosis, part); // Use technicianDiagnosis here!
+        simulatedFailureMatch = getSimulatedFailureCode(technicianDiagnosis, part);
 
         const keywordsHtml = simulatedFailureMatch.matchedKeywords.length > 0
             ? `<p class="matched-keywords">Matched keywords: ${simulatedFailureMatch.matchedKeywords.map(k => `<span>${k}</span>`).join('')}</p>`
@@ -365,7 +362,7 @@ if (claimForm) {
 
         outputDiv.innerHTML += `
             <div class="summary-section" id="section-local-ai">
-                <p><strong>Local AI Preliminary Suggestion:</strong></p>
+                <p><strong>Preliminary AI Failure Mode Suggestion:</strong></p>
                 <p class="failure-code-display">${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}</p>
                 <p class="confidence-score">Confidence: ${simulatedFailureMatch.confidence}%</p>
                 ${keywordsHtml}
@@ -377,16 +374,16 @@ if (claimForm) {
 
 
         // Step 5: Consulting Advanced AI (Gemini) for definitive failure code
-        await animateText(statusMessage, "5. Consulting advanced Gemini AI for definitive failure code based on diagnostic details...");
+        await animateText(statusMessage, "5. Consulting advanced Gemini AI for system-recommended failure code...");
         await wait(STEP_DELAY);
-        geminiFailureCode = await getFailureCodeFromGemini(technicianDiagnosis, part); // Use technicianDiagnosis here!
+        geminiFailureCode = await getFailureCodeFromGemini(technicianDiagnosis, part);
 
         // Append to the local AI section or create new if you prefer
         // For theatrical demo, let's update the existing section
         const localAiSection = document.getElementById('section-local-ai');
         if (localAiSection) {
             localAiSection.innerHTML += `
-                <p style="margin-top: 15px;"><strong>Gemini AI Confirmed Failure Code:</strong></p>
+                <p style="margin-top: 15px;"><strong>System-Recommended Failure Code:</strong></p>
                 <p class="failure-code-display" style="color: var(--primary-color);">${geminiFailureCode}</p>
             `;
         }
@@ -394,13 +391,13 @@ if (claimForm) {
 
 
         // Step 6: Compiling Required Documentation
-        await animateText(statusMessage, "6. Compiling necessary documentation requirements...");
+        await animateText(statusMessage, "6. Compiling required claim documentation...");
         await wait(STEP_DELAY);
-        const docs = getRequiredDocuments(part, technicianDiagnosis); // Pass diagnosis to getRequiredDocuments
+        const docs = getRequiredDocuments(part, technicianDiagnosis);
 
         outputDiv.innerHTML += `
             <div class="summary-section" id="section-docs">
-                <p><strong>Required Documentation:</strong></p>
+                <p><strong>Required Claim Documentation:</strong></p>
                 <ul>${docs.map(d => `<li>${d}</li>`).join('')}</ul>
             </div>
         `;
@@ -413,9 +410,10 @@ if (claimForm) {
         statusMessage.classList.remove('loading');
         await wait(STEP_DELAY / 2);
 
-        // Add final action buttons
+        // Add final action buttons with the 'output-actions' class
         outputDiv.innerHTML += `
-            <div class="output-actions"> <button class="button" type="button" onclick="alert('In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
+            <div class="output-actions">
+                <button class="button" type="button" onclick="alert('In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
                 <button class="secondary-btn" type="button" onclick="alert('In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
             </div>
         `;
