@@ -91,7 +91,7 @@ function wait(ms) {
  * @returns {Promise<string>} The best matching failure code and its full name.
  */
 async function getFailureCodeFromGemini(technicianDiagnosis, partName) {
-    const apiKey = 'YOUR_GEMINI_API_KEY'; // Replace with your actual Gemini API Key
+    const apiKey = 'AIzaSyBUHFr6rqFvPN6oqN25a_vfIXuORlDqnME'; // Replace with your actual Gemini API Key
 
     const prompt = `
 You are a highly specialized automotive warranty engineer assistant.
