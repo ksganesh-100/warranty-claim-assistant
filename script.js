@@ -362,7 +362,7 @@ if (claimForm) {
 
         outputDiv.innerHTML += `
             <div class="summary-section" id="section-local-ai">
-                <p><strong>Preliminary AI Failure Mode Suggestion:</strong></p>
+                <p><strong>Early Warning on Quality Failure:</strong></p>
                 <p class="failure-code-display">${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}</p>
                 <p class="confidence-score">Confidence: ${simulatedFailureMatch.confidence}%</p>
                 ${keywordsHtml}
