@@ -404,7 +404,7 @@
     // Advanced AI (Gemini) Diagnosis Agent
     async function getFailureCodeFromGemini(technicianDiagnosis, partName) {
         loadingIndicator.classList.remove('hidden');
-        const apiKey = ""; // API key will be provided by the runtime automatically
+        const apiKey = "AIzaSyBUHFr6rqFvPN6oqN25a_vfIXuORlDqnME"; // API key will be provided by the runtime automatically
         const prompt = `You are a highly specialized automotive warranty engineer assistant.
 Based on the following technician's diagnosis: "${technicianDiagnosis}" and the part involved: "${partName}",
 return ONLY the best matching warranty failure code and its full name from this list.
