@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployable Multi-Agent Warranty System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Calm Neutrals with Teal Accent -->
+    <!-- Application Structure Plan: The application is structured as a single-page dashboard with distinct, collapsible sections for 'Claim Submission', 'Live Analysis', and 'Past Claims'. This dashboard approach was chosen to provide a comprehensive view, allowing users to initiate new analyses and review historical data from a single interface. The step-by-step 'Live Analysis' section retains the storytelling aspect, while the 'Past Claims' section adds persistent data interaction, enhancing usability for a deployable application. -->
+    <!-- Visualization & Content Choices:
+        - Report Info: Overall system workflow -> Goal: Inform/Organize -> Viz: Step-by-step interactive agent cards within a collapsible section -> Interaction: 'Next Step' button, 'Begin Analysis' button -> Justification: Breaks down complex process into digestible, sequential parts, improving comprehension.
+        - Report Info: VIN/Warranty Eligibility -> Goal: Compare -> Viz: Horizontal bar charts (HTML/CSS) for Time/Mileage vs. Allowed -> Interaction: Visual comparison -> Justification: Provides immediate, clear visual feedback on eligibility status.
+        - Report Info: NLP Confidence Score -> Goal: Inform -> Viz: Donut chart (Chart.js) -> Interaction: N/A (static visualization of score) -> Justification: Effectively represents the percentage confidence in a compact, readable format.
+        - Report Info: Agent Roles (TSB, Gemini, Docs) -> Goal: Inform -> Viz: Styled text blocks with Unicode icons (e.g., 📢, 💡, 📋) -> Interaction: Reading -> Justification: Efficiently conveys findings and details from various agents.
+        - Report Info: Stored Claim Data -> Goal: Inform/Organize -> Viz: Collapsible list of past claims fetched from Firestore -> Interaction: Click to view details -> Justification: Demonstrates database integration and provides historical context, crucial for a deployable app.
+        - Library/Method: Vanilla JS for all logic and DOM manipulation, Chart.js for the donut chart, TailwindCSS for responsive layout and styling, Firebase Firestore for data persistence and Firebase Auth for user management. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Inter', sans-serif;
+        }
+        .agent-card {
+            transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+            border: 1px solid #e2e8f0;
+        }
+        .progress-bar-bg {
+            background-color: #e2e8f0;
+        }
+        .progress-bar {
+            background-color: #0d9488; /* Teal-600 */
+            transition: width 0.5s ease-out;
+        }
+        .progress-bar.expired {
+            background-color: #e11d48; /* Rose-600 */
+        }
+        .chart-container {
+            position: relative;
+            margin: auto;
+            height: 150px;
+            width: 150px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 500px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            position: relative;
+            transform: translateY(-20px);
+            opacity: 0;
+            transition: all 0.3s ease-out;
+        }
+        .modal.show .modal-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: #000;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-teal-700">Deployable Multi-Agent Warranty System</h1>
+            <p class="text-gray-600 mt-2">A proof-of-concept for AI-powered warranty claim processing with persistence.</p>
+            <div id="user-status" class="text-sm mt-4 text-gray-500 hidden">
+                Loading user session...
+            </div>
+        </header>
+
+        <!-- Claim Submission Section -->
+        <section class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-6">
+            <h2 class="text-xl font-semibold text-gray-700 border-b pb-3 mb-4 flex items-center">
+                <span class="text-2xl mr-3">📝</span> Claim Submission
+            </h2>
+            <p class="text-gray-600 mb-6">Enter new claim details below to initiate a multi-agent analysis. This data will then be processed by the system.</p>
+            <form id="claimForm">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm text-gray-700">
+                    <div>
+                        <label for="product" class="block text-sm font-medium text-gray-700">Product Model</label>
+                        <input type="text" id="product" value="Tractor X120" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                    </div>
+                    <div>
+                        <label for="part" class="block text-sm font-medium text-gray-700">Affected Component</label>
+                        <input type="text" id="part" value="gearbox" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                    </div>
+                    <div>
+                        <label for="vin" class="block text-sm font-medium text-gray-700">VIN (e.g., 1HGJM1770AA00001)</label>
+                        <input type="text" id="vin" value="1HGJM1770AA00001" maxlength="17" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                    </div>
+                    <div>
+                        <label for="odometer" class="block text-sm font-medium text-gray-700">Odometer Reading (miles)</label>
+                        <input type="number" id="odometer" value="30000" min="0" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="customerComplaint" class="block text-sm font-medium text-gray-700">Customer Complaint</label>
+                        <textarea id="customerComplaint" rows="2" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">I hear a grinding noise when shifting gears, especially from 2nd to 3rd.</textarea>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="technicianDiagnosis" class="block text-sm font-medium text-gray-700">Technician's Findings</label>
+                        <textarea id="technicianDiagnosis" rows="2" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">Upon inspection, found excessive play in the gearbox synchronizer ring for 2nd-3rd gear, indicating premature wear and tear.</textarea>
+                    </div>
+                     <div class="md:col-span-2">
+                        <label for="purchaseDate" class="block text-sm font-medium text-gray-700">Customer Reported Purchase Date</label>
+                        <input type="date" id="purchaseDate" value="2023-01-15" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                    </div>
+                    <div class="md:col-span-2 text-center">
+                        <button type="submit" id="generateClaimBtn" class="bg-teal-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-teal-700 transition-all transform hover:scale-105">
+                            Begin Multi-Agent Analysis
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <!-- Live Analysis Section -->
+        <section class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-6">
+            <h2 class="text-xl font-semibold text-gray-700 border-b pb-3 mb-4 flex items-center">
+                <span class="text-2xl mr-3">⚡</span> Live Analysis Workflow
+            </h2>
+            <p class="text-gray-600 mb-6">Watch as the Master Agent orchestrates the various helper agents to process the claim in real-time.</p>
+             <div id="loading-indicator" class="hidden text-center text-gray-500 my-4">
+                <div class="animate-spin inline-block w-6 h-6 border-4 border-teal-500 border-t-transparent rounded-full"></div>
+                <p class="mt-2">Processing...</p>
+            </div>
+            <div id="orchestration-flow" class="space-y-6">
+                <!-- Agent cards will be injected here -->
+            </div>
+            <div class="text-center mt-8 space-x-4">
+                <button id="next-btn" class="hidden bg-gray-800 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-gray-900 transition-all">
+                    Next Step &rarr;
+                </button>
+                <button id="save-claim-btn" class="hidden bg-blue-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-blue-700 transition-all">
+                    💾 Save Claim
+                </button>
+                <button id="reset-analysis-btn" class="hidden bg-rose-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-rose-700 transition-all">
+                    Start New Analysis
+                </button>
+            </div>
+        </section>
+
+        <!-- Past Claims Section -->
+        <section class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-700 border-b pb-3 mb-4 flex items-center">
+                <span class="text-2xl mr-3">📂</span> Past Claims
+            </h2>
+            <p class="text-gray-600 mb-4">Review previously analyzed and saved warranty claims. Data is retrieved from a lightweight cloud database (Firestore).</p>
+            <div id="past-claims-list" class="space-y-4">
+                <p class="text-center text-gray-500" id="no-claims-message">Loading past claims...</p>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Custom Modal Structure -->
+    <div id="customModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="closeModalBtn">&times;</span>
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-800 mb-4"></h3>
+            <p id="modalMessage" class="text-gray-700 mb-6"></p>
+            <div class="flex justify-end space-x-4">
+                <button id="modalConfirmBtn" class="hidden bg-teal-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-teal-700">Confirm</button>
+                <button id="modalCloseBtn" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg hover:bg-gray-400">Close</button>
+            </div>
+        </div>
+    </div>
+
+<script type="module">
+    // Firebase SDK Imports - All necessary imports are now within this single script block
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Firebase configuration and initialization (MANDATORY GLOBALS)
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    let app;
+    let db;
+    let auth;
+    let userId = null;
+
+    // --- Demo Data for Initial Firestore Population ---
+    const DEMO_VINS = [
+        {
+            vin: "1HGJM1770AA00001",
+            make: "AgriCorp",
+            model: "Tractor X120",
+            modelYear: 2022,
+            inServiceDate: "2023-02-15T00:00:00.000Z", // ISO string for Date object
+            standardWarrantyYears: 3,
+            standardWarrantyMiles: 36000
+        },
+        {
+            vin: "5TYGH8901BA000002",
+            make: "AutoMotive",
+            model: "Sedan XYZ",
+            modelYear: 2023,
+            inServiceDate: "2023-06-01T00:00:00.000Z",
+            standardWarrantyYears: 5,
+            standardWarrantyMiles: 60000
+        },
+        {
+            vin: "2FDCV4567CA000003",
+            make: "HeavyDuty",
+            model: "Excavator 5000",
+            modelYear: 2021,
+            inServiceDate: "2022-01-10T00:00:00.000Z",
+            standardWarrantyYears: 2,
+            standardWarrantyMiles: 10000 // Or hours for heavy machinery
+        }
+    ];
+
+    const DEMO_TSBS = [
+        {
+            id: "TSB-24-005-TRX",
+            type: "TSB",
+            title: "Gearbox Synchronizer Grinding Noise",
+            description: "Addresses grinding noise during 2nd-3rd gear shifts in Tractor X120 models due to premature synchronizer wear. Provides updated diagnostic procedures and recommended replacement parts.",
+            products: ["tractor x120", "tractor"],
+            parts: ["gearbox", "transmission", "synchronizer"],
+            keywords: ["grinding", "shift", "gearbox", "synchronizer", "noise"]
+        },
+        {
+            id: "RECALL-23V-123",
+            type: "Recall",
+            title: "Hydraulic Hose Leak Inspection",
+            description: "Mandatory safety recall for potential hydraulic hose leaks affecting Model S Sedan. Requires immediate inspection and hose replacement.",
+            products: ["model s sedan", "sedan"],
+            parts: ["hydraulic", "hose", "fluid", "pump"],
+            keywords: ["leak", "hydraulic", "fluid"]
+        },
+        {
+            id: "TSB-EL-2023-015",
+            type: "TSB",
+            title: "Electrical Wiring Inspection for Overheating",
+            description: "Investigates instances of electrical wiring overheating and smoke. Advises inspection of specific harness bundles for affected production dates.",
+            products: ["tractor x120", "sedan xyz"], // Applies to specific models
+            parts: ["electrical", "wiring", "harness", "circuit"],
+            keywords: ["electrical", "smoke", "smell", "burn", "overheat", "fuse"]
+        },
+        {
+            id: "TSB-SUSP-2024-001",
+            type: "TSB",
+            title: "Front Wheel Bearing Anomaly Noise",
+            description: "Addresses unusual noise/vibration from front wheels. Details inspection and replacement procedures for affected bearing batches.",
+            products: ["truck f150", "suv explorer", "sedan xyz"],
+            parts: ["bearing", "wheel", "hub", "axle"],
+            keywords: ["noise", "vibration", "bearing", "rattle"]
+        }
+    ];
+    // --- End Demo Data ---
+
+    async function ensureFirestoreDemoData() {
+        if (!db) {
+            console.warn("Firestore not initialized, cannot ensure demo data.");
+            return;
+        }
+
+        const vinColRef = collection(db, `artifacts/${appId}/public/data/vins`);
+        const tsbColRef = collection(db, `artifacts/${appId}/public/data/tsbs`);
+
+        try {
+            // Check and populate VINs
+            const vinSnapshot = await getDocs(vinColRef);
+            if (vinSnapshot.empty) {
+                console.log("Populating demo VINs...");
+                const batch = writeBatch(db);
+                DEMO_VINS.forEach(data => {
+                    const docRef = doc(vinColRef, data.vin); // Use VIN as document ID
+                    batch.set(docRef, data);
+                });
+                await batch.commit();
+                console.log("Demo VINs populated.");
+            } else {
+                console.log("VINs collection already contains data.");
+            }
+
+            // Check and populate TSBs
+            const tsbSnapshot = await getDocs(tsbColRef);
+            if (tsbSnapshot.empty) {
+                console.log("Populating demo TSBs...");
+                const batch = writeBatch(db);
+                DEMO_TSBS.forEach(data => {
+                    const docRef = doc(tsbColRef, data.id); // Use TSB ID as document ID
+                    batch.set(docRef, data);
+                });
+                await batch.commit();
+                console.log("Demo TSBs populated.");
+            } else {
+                console.log("TSBs collection already contains data.");
+            }
+        } catch (e) {
+            console.error("Error ensuring Firestore demo data:", e);
+        }
+    }
+
+
+    // Initialize Firebase when the script loads
+    if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.projectId) {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+
+        // Authenticate user and then load data
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                console.log("Firebase Auth Ready. User ID:", userId);
+                document.getElementById('user-status').textContent = `User ID: ${userId}`;
+                document.getElementById('user-status').classList.remove('hidden');
+                await ensureFirestoreDemoData(); // Ensure data is present after auth
+                loadPastClaims(); // Load claims only after auth is ready and demo data is ensured
+            } else if (initialAuthToken) {
+                try {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } catch (error) {
+                    console.error("Error signing in with custom token:", error);
+                    await signInAnonymously(auth); // Fallback to anonymous
+                }
+            } else {
+                await signInAnonymously(auth);
+            }
+        });
+    } else {
+        console.error("Firebase config not found or invalid. Firestore features will be disabled.");
+    }
+
+    // Constants
+    const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
+    const TYPING_DELAY = 15;
+    const STEP_DELAY = 700;
+
+    // Simulated Local AI Knowledge Base (NLP Early Warning Agent)
+    const FAILURE_CODES_LOCAL = [
+        { code: "F213", name: "Gearbox Synchronizer Failure", keywords: ["gearbox", "synchronizer", "shift", "grind", "engage", "transmission", "stuck"], parts: ["gearbox", "transmission", "synchronizer"], baseConfidence: 70 },
+        { code: "F107", name: "Hydraulic Seal Failure", keywords: ["hydraulic", "seal", "leak", "fluid", "cylinder", "pump", "pressure", "sag"], parts: ["hydraulic", "pump", "cylinder", "actuator"], baseConfidence: 75 },
+        { code: "F305", name: "Electrical Wiring Burnout", keywords: ["electrical", "wiring", "burn", "smoke", "smell", "fuse", "circuit", "short", "power", "unresponsive"], parts: ["electrical", "wiring", "harness", "module", "circuit board", "battery"], baseConfidence: 65 },
+        { code: "F412", name: "Bearing Wear and Tear", keywords: ["bearing", "wear", "noise", "vibration", "grind", "rattle", "wheel", "pulley", "axle", "loose"], parts: ["bearing", "wheel", "axle", "pulley", "hub", "spindle"], baseConfidence: 80 },
+        { code: "F999", name: "Unknown or Unclassified", keywords: [], parts: [], baseConfidence: 30 }
+    ];
+
+    // DOM Elements
+    const claimForm = document.getElementById("claimForm");
+    const productInput = document.getElementById("product");
+    const partInput = document.getElementById("part");
+    const vinInput = document.getElementById("vin");
+    const odometerInput = document.getElementById("odometer");
+    const customerComplaintInput = document.getElementById("customerComplaint");
+    const technicianDiagnosisInput = document.getElementById("technicianDiagnosis");
+    const purchaseDateInput = document.getElementById("purchaseDate");
+    const orchestrationFlow = document.getElementById('orchestration-flow');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const nextBtn = document.getElementById('next-btn');
+    const saveClaimBtn = document.getElementById('save-claim-btn');
+    const resetAnalysisBtn = document.getElementById('reset-analysis-btn');
+    const generateClaimBtn = document.getElementById('generateClaimBtn');
+    const pastClaimsList = document.getElementById('past-claims-list');
+    const noClaimsMessage = document.getElementById('no-claims-message');
+    const formInputs = [productInput, partInput, vinInput, odometerInput, customerComplaintInput, technicianDiagnosisInput, purchaseDateInput, generateClaimBtn];
+
+    // Modal elements
+    const customModal = document.getElementById('customModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMessage = document.getElementById('modalMessage');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const modalCloseBtn = document.getElementById('modalCloseBtn');
+    const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+
+    let currentStep = -1;
+    let analysisResult = {};
+    let chartInstance = null;
+
+    // Utility Functions
+    async function animateText(element, text, delay = TYPING_DELAY) {
+        element.textContent = '';
+        for (let i = 0; i < text.length; i++) {
+            element.textContent += text.charAt(i);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    function wait(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function showModal(title, message, showConfirm = false) {
+        modalTitle.textContent = title;
+        modalMessage.textContent = message;
+        if (showConfirm) {
+            modalConfirmBtn.classList.remove('hidden');
+        } else {
+            modalConfirmBtn.classList.add('hidden');
+        }
+        customModal.classList.add('show');
+        customModal.style.display = 'flex';
+        return new Promise(resolve => {
+            const closeAndResolve = (result) => {
+                customModal.classList.remove('show');
+                customModal.style.display = 'none';
+                modalCloseBtn.onclick = null;
+                closeModalBtn.onclick = null;
+                modalConfirmBtn.onclick = null;
+                resolve(result);
+            };
+            modalCloseBtn.onclick = () => closeAndResolve(false);
+            closeModalBtn.onclick = () => closeAndResolve(false);
+            modalConfirmBtn.onclick = () => closeAndResolve(true);
+        });
+    }
+    // Expose showModal to the window object so it can be called from inline HTML attributes
+    window.showModal = showModal;
+
+    function toggleFormInputs(disabled) {
+        formInputs.forEach(input => {
+            input.disabled = disabled;
+        });
+    }
+
+    // --- Helper Agent Implementations ---
+
+    // VIN Lookup Agent: Fetches VIN data from Firestore
+    async function getVinDetails(vin) {
+        if (!db) {
+            console.error("Firestore DB not available for VIN lookup.");
+            return null;
+        }
+        loadingIndicator.classList.remove('hidden');
+        try {
+            const vinDocRef = doc(db, `artifacts/${window.__app_id}/public/data/vins`, vin);
+            const vinDocSnap = await getDoc(vinDocRef);
+            await wait(500); // Simulate network latency
+
+            if (vinDocSnap.exists()) {
+                const data = vinDocSnap.data();
+                // Convert ISO string to Date object if needed for calculations
+                data.inServiceDate = new Date(data.inServiceDate);
+                return data;
+            } else {
+                console.warn(`VIN ${vin} not found in Firestore. Returning generic data.`);
+                return {
+                    vin: vin, // Return the requested VIN
+                    make: "Unknown",
+                    model: "Generic Model",
+                    modelYear: 2020,
+                    inServiceDate: new Date(), // Default to current date
+                    standardWarrantyYears: 3,
+                    standardWarrantyMiles: 36000
+                };
+            }
+        } catch (e) {
+            console.error("Error fetching VIN from Firestore:", e);
+            return null;
+        } finally {
+            loadingIndicator.classList.add('hidden');
+        }
+    }
+
+    // Advanced AI (Gemini) Diagnosis Agent
+    async function getFailureCodeFromGemini(technicianDiagnosis, partName) {
+        loadingIndicator.classList.remove('hidden');
+        const apiKey = "";
+        const prompt = `You are a highly specialized automotive warranty engineer assistant.
+Based on the following technician's diagnosis: "${technicianDiagnosis}" and the part involved: "${partName}",
+return ONLY the best matching warranty failure code and its full name from this list.
+Focus strictly on the diagnostic and root cause information provided.
+
+Failure Codes:
+- F213 - Gearbox Synchronizer Failure
+- F107 - Hydraulic Seal Failure
+- F305 - Electrical Wiring Burnout
+- F412 - Bearing Wear and Tear
+- F999 - Unknown or Unclassified (Use if no clear match)
+
+Example desired output: "F213 - Gearbox Synchronizer Failure"`;
+
+        try {
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            const response = await fetch(apiUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorBody = await response.json();
+                console.error("Gemini API error:", errorBody);
+                return "F999 - Unknown (API Error)";
+            }
+            const data = await response.json();
+            const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "F999 - Unknown";
+            return textResponse.trim();
+        } catch (error) {
+            console.error("Error calling Gemini API:", error);
+            return "F999 - Unknown (Network Error)";
+        } finally {
+            loadingIndicator.classList.add('hidden');
+        }
+    }
+
+    // NLP Early Warning Agent
+    function getSimulatedFailureCode(diagnosis, part) {
+        const tokens = new Set([...diagnosis.split(/\s+/), ...part.split(/\s+/)].map(t => t.toLowerCase().replace(/[^a-z0-9]/g, '')));
+        let bestMatch = { code: "F999", name: "Unknown or Unclassified", confidence: 30, matchedKeywords: [] };
+        let highestScore = -1;
+
+        for (const failureType of FAILURE_CODES_LOCAL) {
+            let score = 0;
+            const currentMatchedKeywords = [];
+            for (const keyword of failureType.keywords) {
+                if (tokens.has(keyword)) { score += 10; currentMatchedKeywords.push(keyword); }
+            }
+            for (const partKeyword of failureType.parts) {
+                if (part.includes(partKeyword)) { score += 15; if (!currentMatchedKeywords.includes(partKeyword)) { currentMatchedKeywords.push(partKeyword); } }
+            }
+            score += failureType.baseConfidence;
+            if (failureType.parts.length > 0 && currentMatchedKeywords.filter(k => failureType.parts.includes(k)).length === 0) { score = Math.max(score - 10, 0); }
+            if (score > highestScore) {
+                highestScore = score;
+                bestMatch = { code: failureType.code, name: failureType.name, confidence: Math.min(100, score), matchedKeywords: Array.from(new Set(currentMatchedKeywords)) };
+            }
+        }
+        return bestMatch;
+    }
+
+    // TSB & Recall Lookup Agent: Fetches TSB data from Firestore and filters
+    async function getRelevantTsbs(product, part, diagnosis) {
+        if (!db) {
+            console.error("Firestore DB not available for TSB lookup.");
+            return [];
+        }
+        loadingIndicator.classList.remove('hidden');
+        const tsbColRef = collection(db, `artifacts/${window.__app_id}/public/data/tsbs`);
+        const matchingTsbs = [];
+        const searchTerms = new Set([...product.toLowerCase().split(/\s+/), ...part.toLowerCase().split(/\s+/), ...diagnosis.toLowerCase().split(/\s+/)].map(t => t.replace(/[^a-z0-9]/g, '')));
+
+        try {
+            const querySnapshot = await getDocs(tsbColRef);
+            await wait(500); // Simulate network latency
+
+            querySnapshot.forEach(docSnap => {
+                const tsb = docSnap.data();
+                let score = 0;
+
+                // Match by product
+                if (tsb.products && tsb.products.some(p => searchTerms.has(p.toLowerCase()))) {
+                    score += 10;
+                }
+                // Match by part
+                if (tsb.parts && tsb.parts.some(p => searchTerms.has(p.toLowerCase()))) {
+                    score += 15;
+                }
+                // Match by keywords in diagnosis
+                if (tsb.keywords && tsb.keywords.some(k => searchTerms.has(k.toLowerCase()))) {
+                    score += 20;
+                }
+
+                if (score > 0) { // Consider it a match if any score
+                    matchingTsbs.push(tsb);
+                }
+            });
+            return matchingTsbs;
+        } catch (e) {
+            console.error("Error fetching TSBs from Firestore:", e);
+            return [];
+        } finally {
+            loadingIndicator.classList.add('hidden');
+        }
+    }
+
+
+    // Documentation Compiler Agent
+    function getRequiredDocuments(part, diagnosis, isEligible) {
+        if (!isEligible) return ["No documents required as claim is not eligible for warranty."];
+        const docs = ["Completed Service Order Form (with VIN/Serial No.)", "Customer Concern Narrative (signed/verified)"];
+        if (diagnosis.length > 20) { docs.push("Technician's Detailed Diagnostic Report"); }
+        if (part.includes("gear") || part.includes("transmission") || part.includes("synchronizer")) { docs.push("High-Resolution Photo/Video of Damaged Gearbox Components", "Dealer Diagnostic Report (including DTCs if any)"); }
+        else if (part.includes("hydraulic") || part.includes("cylinder") || part.includes("pump") || part.includes("seal") || diagnosis.includes("leak")) { docs.push("High-Resolution Leak Photo (clearly showing fluid source and path)", "Technician's Operational Test Report (e.g., pressure readings)"); }
+        else if (part.includes("electrical") || part.includes("wiring") || part.includes("circuit") || part.includes("module") || diagnosis.includes("electrical") || diagnosis.includes("fuse")) { docs.push("Circuit Diagram or Schematic Reference", "Photo of Burnt Area / Physical Damage (if visible)", "Diagnostic Trouble Codes (DTCs) from ECU"); }
+        else if (part.includes("bearing") || part.includes("wheel") || part.includes("axle") || part.includes("hub") || diagnosis.includes("noise") || diagnosis.includes("vibration")) { docs.push("Sound/Video Recording of Anomalous Noise (e.g., grinding)", "Bearing Play/Runout Measurement Report"); }
+        docs.push("Any Other Relevant Supporting Evidence (e.g., historical service records, specific test results)");
+        return Array.from(new Set(docs));
+    }
+
+    // Step definitions for the Master Agent's orchestration
+    const steps = [
+        {
+            id: 'master-agent',
+            title: 'Master Agent: Claim Orchestrator',
+            icon: '🤖',
+            content: `
+                <p>The Master Agent receives the initial claim data and begins the orchestration process. It coordinates specialized helper agents, collects their findings, and assembles the final summary.</p>
+                <p class="mt-4 p-3 bg-teal-50 border border-teal-200 rounded-lg text-teal-800"><strong>Action:</strong> Initializing workflow and preparing to call the first helper agent.</p>
+            `,
+            action: async () => {
+                analysisResult = { // Reset analysisResult for new claim
+                    initialData: {
+                        product: productInput.value.trim(),
+                        part: partInput.value.trim().toLowerCase(),
+                        vin: vinInput.value.trim().toUpperCase(),
+                        odometer: parseInt(odometerInput.value),
+                        customerComplaint: customerComplaintInput.value.trim().toLowerCase(),
+                        technicianDiagnosis: technicianDiagnosisInput.value.trim().toLowerCase(),
+                        purchaseDate: new Date(purchaseDateInput.value).toISOString(),
+                    },
+                    timestamp: new Date().toISOString()
+                };
+                return { success: true };
+            }
+        },
+        {
+            id: 'vin-agent',
+            title: 'VIN & Warranty Eligibility Agent',
+            icon: '🛡️',
+            content: `
+                <p>This agent connects to a VIN lookup service (powered by Firestore for this demo) to retrieve vehicle details and then cross-references with OEM warranty policies.</p>
+                <div class="mt-4 space-y-4">
+                    <div>
+                        <div class="flex justify-between text-sm font-medium mb-1"><span>Time Coverage</span><span id="time-coverage-text"></span></div>
+                        <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="time-bar" class="progress-bar h-full rounded-full"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm font-medium mb-1"><span>Mileage Coverage</span><span id="mileage-coverage-text"></span></div>
+                        <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="mileage-bar" class="progress-bar h-full rounded-full"></div></div>
+                    </div>
+                </div>
+                <p id="eligibility-status-text" class="mt-4 p-3 rounded-lg font-semibold"></p>
+            `,
+            action: async () => {
+                const vinDetails = await getVinDetails(analysisResult.initialData.vin);
+                if (!vinDetails) {
+                    await showModal("Error", "Could not retrieve VIN details. Please check the VIN and try again.");
+                    return { success: false };
+                }
+
+                const today = new Date();
+                const actualInServiceDate = vinDetails.inServiceDate;
+                const yearsSinceInService = (today - actualInServiceDate) / MS_PER_YEAR;
+
+                const isEligibleByDate = yearsSinceInService <= vinDetails.standardWarrantyYears;
+                const isEligibleByMileage = analysisResult.initialData.odometer <= vinDetails.standardWarrantyMiles;
+                const isEligibleFinal = isEligibleByDate && isEligibleByMileage;
+
+                analysisResult.vinDetails = { // Store relevant VIN details
+                    make: vinDetails.make,
+                    model: vinDetails.model,
+                    modelYear: vinDetails.modelYear,
+                    inServiceDate: vinDetails.inServiceDate.toISOString(),
+                    standardWarrantyYears: vinDetails.standardWarrantyYears,
+                    standardWarrantyMiles: vinDetails.standardWarrantyMiles
+                };
+                analysisResult.warrantyEligibility = {
+                    inServiceDateDisplay: actualInServiceDate.toLocaleDateString(),
+                    warrantyType: `${vinDetails.standardWarrantyYears} Years / ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles`,
+                    yearsSinceInService: parseFloat(yearsSinceInService.toFixed(1)), // Ensure numeric for later JSON
+                    isEligibleByDate,
+                    isEligibleByMileage,
+                    isEligibleFinal
+                };
+
+                const timeCoverageText = document.getElementById('time-coverage-text');
+                const mileageCoverageText = document.getElementById('mileage-coverage-text');
+                const timeBar = document.getElementById('time-bar');
+                const mileageBar = document.getElementById('mileage-bar');
+                const eligibilityStatusText = document.getElementById('eligibility-status-text');
+
+                timeCoverageText.textContent = `${analysisResult.warrantyEligibility.yearsSinceInService} of ${vinDetails.standardWarrantyYears.toFixed(1)} Years Used`;
+                mileageCoverageText.textContent = `${analysisResult.initialData.odometer.toLocaleString()} of ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles Used`;
+
+                const timePercent = Math.min(100, (yearsSinceInService / vinDetails.standardWarrantyYears) * 100);
+                const mileagePercent = Math.min(100, (analysisResult.initialData.odometer / vinDetails.standardWarrantyMiles) * 100);
+
+                timeBar.style.width = `${timePercent}%`;
+                mileageBar.style.width = `${mileagePercent}%`;
+
+                if (!isEligibleByDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
+                if (!isEligibleByMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
+
+                eligibilityStatusText.textContent = `Finding: ${isEligibleFinal ? '✅ Vehicle is ELIGIBLE for warranty coverage.' : '❌ Vehicle is NOT ELIGIBLE for warranty coverage.'}`;
+                eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold ${isEligibleFinal ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-rose-50 border border-rose-200 text-rose-800'}`;
+
+                return { success: true };
+            }
+        },
+        {
+            id: 'tsb-agent',
+            title: 'TSB & Recall Lookup Agent',
+            icon: '📢',
+            content: `
+                <p>The **TSB & Recall Lookup Agent** cross-references the vehicle's VIN and current diagnostic findings against manufacturer-issued Technical Service Bulletins and safety recall advisories (data from Firestore for this demo). This helps pinpoint if the reported issue aligns with any known systemic problems or required repairs, ensuring adherence to OEM best practices and compliance.</p>
+                <div id="tsb-results" class="mt-4 space-y-3"></div>
+            `,
+            action: async () => {
+                const relevantTsbs = await getRelevantTsbs(analysisResult.initialData.product, analysisResult.initialData.part, analysisResult.initialData.technicianDiagnosis);
+                analysisResult.tsbsFound = relevantTsbs;
+
+                const tsbResultsDiv = document.getElementById('tsb-results');
+                if (relevantTsbs.length > 0) {
+                    tsbResultsDiv.innerHTML = relevantTsbs.map(tsb => `
+                        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
+                            <p class="font-semibold">${tsb.type.toUpperCase()} ${tsb.id}: ${tsb.title}</p>
+                            <p class="text-sm mt-1">${tsb.description}</p>
+                        </div>
+                    `).join('');
+                } else {
+                    tsbResultsDiv.innerHTML = `<p class="p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700"><strong>Finding:</strong> No active TSBs or Recalls found for this specific issue or VIN in the database.</p>`;
+                }
+                return { success: true };
+            }
+        },
+        {
+            id: 'nlp-agent',
+            title: 'NLP Early Warning Agent',
+            icon: '🧠',
+            content: `
+                <p>This agent performs a rapid, preliminary analysis of the technician's diagnosis using a local knowledge base to suggest potential failure modes.</p>
+                <div class="flex flex-col md:flex-row items-center justify-center gap-6 mt-4">
+                    <div class="chart-container"><canvas id="confidenceChart"></canvas></div>
+                    <div class="flex-1">
+                        <p class="font-semibold text-gray-700">Preliminary Suggestion:</p>
+                        <p id="nlp-failure-display" class="text-xl font-bold text-amber-600"></p>
+                        <p id="nlp-matched-keywords" class="mt-2 text-sm text-gray-500"></p>
+                    </div>
+                </div>
+            `,
+            action: async () => {
+                const simulatedFailureMatch = getSimulatedFailureCode(analysisResult.initialData.technicianDiagnosis, analysisResult.initialData.part);
+                analysisResult.nlpAnalysis = simulatedFailureMatch;
+
+                const nlpFailureDisplay = document.getElementById('nlp-failure-display');
+                const nlpMatchedKeywords = document.getElementById('nlp-matched-keywords');
+
+                nlpFailureDisplay.textContent = `${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}`;
+                const keywordsHtml = simulatedFailureMatch.matchedKeywords.length > 0
+                    ? `Matched keywords: ${simulatedFailureMatch.matchedKeywords.map(k => `<span class="bg-gray-200 text-gray-700 px-2 py-1 rounded">${k}</span>`).join(' ')}`
+                    : `No specific keywords matched locally.`;
+                nlpMatchedKeywords.innerHTML = keywordsHtml;
+
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+                const ctx = document.getElementById('confidenceChart').getContext('2d');
+                chartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Confidence', ''],
+                        datasets: [{
+                            data: [simulatedFailureMatch.confidence, 100 - simulatedFailureMatch.confidence],
+                            backgroundColor: ['#0d9488', '#e2e8f0'],
+                            borderColor: ['#fff'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (context.parsed > 0) {
+                                            label = `Confidence: ${context.parsed}%`;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: `${simulatedFailureMatch.confidence}%`,
+                                position: 'top',
+                                align: 'center',
+                                font: { size: 24, weight: 'bold', family: 'Inter' },
+                                color: '#0d9488',
+                                padding: { top: 60 }
+                            }
+                        }
+                    }
+                });
+                return { success: true };
+            }
+        },
+        {
+            id: 'gemini-agent',
+            title: 'Advanced AI (Gemini) Diagnosis Agent',
+            icon: '💡',
+            content: `
+                <p>For higher accuracy, the diagnosis and preliminary findings are sent to an advanced AI model (Gemini) for a definitive system-recommended failure code.</p>
+                <p id="gemini-failure-display" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
+                    <strong class="text-blue-900">System-Recommended Failure Code:</strong>
+                    <span class="block text-xl font-bold mt-1"></span>
+                </p>
+                <p class="text-sm text-center mt-2 text-gray-500">Advanced analysis refines the preliminary finding.</p>
+            `,
+            action: async () => {
+                const geminiFailureCode = await getFailureCodeFromGemini(analysisResult.initialData.technicianDiagnosis, analysisResult.initialData.part);
+                analysisResult.geminiAnalysis = geminiFailureCode;
+                document.querySelector('#gemini-failure-display span').textContent = geminiFailureCode;
+                return { success: true };
+            }
+        },
+        {
+            id: 'docs-agent',
+            title: 'Documentation Compiler Agent',
+            icon: '📋',
+            content: `
+                <p>Based on the final failure code and warranty eligibility, this agent compiles a precise list of required documents for the claim submission, ensuring all necessary evidence is gathered.</p>
+                <ul id="required-docs-list" class="list-disc list-inside mt-4 p-4 bg-gray-50 rounded-lg space-y-2"></ul>
+            `,
+            action: async () => {
+                const docs = getRequiredDocuments(analysisResult.initialData.part, analysisResult.initialData.technicianDiagnosis, analysisResult.warrantyEligibility.isEligibleFinal);
+                analysisResult.requiredDocuments = docs;
+                const requiredDocsList = document.getElementById('required-docs-list');
+                requiredDocsList.innerHTML = docs.map(d => `<li>${d}</li>`).join('');
+                return { success: true };
+            }
+        },
+        {
+            id: 'summary',
+            title: 'Analysis Complete: Consolidated Summary',
+            icon: '✅',
+            content: `
+                <p>All agents have completed their tasks. The Master Agent has consolidated the findings into a final summary, ready for the warranty processor.</p>
+                <div id="final-status" class="mt-4 p-4 border rounded-lg"></div>
+                <div id="final-actions" class="mt-4 text-center"></div>
+            `,
+            action: async () => {
+                const finalStatusDiv = document.getElementById('final-status');
+                const finalActionsDiv = document.getElementById('final-actions');
+
+                if (analysisResult.warrantyEligibility.isEligibleFinal) {
+                    finalStatusDiv.className = "mt-4 p-4 border border-teal-500 bg-teal-50 rounded-lg text-teal-900";
+                    finalStatusDiv.innerHTML = `
+                        <p><strong>Status:</strong> <span class="font-bold">ELIGIBLE FOR WARRANTY - APPROVED PENDING DOCUMENTATION</span></p>
+                        <p><strong>System-Recommended Failure Code:</strong> ${analysisResult.geminiAnalysis}</p>
+                        <p class="mt-2"><strong>Action:</strong> Submit claim with the recommended failure code and ensure all required documents are attached.</p>
+                    `;
+                    finalActionsDiv.innerHTML = `
+                        <button class="bg-teal-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-teal-700 transition-all" onclick="window.showModal('Claim Submission', 'In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
+                        <button class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition-all ml-4" onclick="window.showModal('Provide Feedback', 'In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
+                    `;
+                } else {
+                    finalStatusDiv.className = "mt-4 p-4 border border-rose-500 bg-rose-50 rounded-lg text-rose-900";
+                    finalStatusDiv.innerHTML = `
+                        <p><strong>Status:</strong> <span class="font-bold">NOT ELIGIBLE FOR WARRANTY</span></p>
+                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles).</p>
+                        <p class="mt-2"><strong>Action:</strong> This process would typically transition to a customer-pay repair or a goodwill request, if applicable.</p>
+                    `;
+                    finalActionsDiv.innerHTML = `
+                        <p class="text-gray-600 italic">No direct submission to OEM WMS required for non-eligible claims.</p>
+                    `;
+                }
+                saveClaimBtn.classList.remove('hidden');
+                return { success: true };
+            }
+        }
+    ];
+
+    function clearAnalysisFlow() {
+        orchestrationFlow.innerHTML = '';
+        nextBtn.classList.add('hidden');
+        saveClaimBtn.classList.add('hidden');
+        resetAnalysisBtn.classList.add('hidden');
+        if (chartInstance) {
+            chartInstance.destroy();
+            chartInstance = null;
+        }
+    }
+
+    async function showNextStep() {
+        if (currentStep < steps.length - 1) {
+            currentStep++;
+            const step = steps[currentStep];
+
+            const card = document.createElement('div');
+            card.id = `card-${step.id}`;
+            card.className = 'agent-card bg-white p-6 rounded-xl shadow-md opacity-0 transform translate-y-5';
+            card.innerHTML = `
+                <h3 class="text-xl font-semibold text-teal-700 border-b pb-3 mb-4 flex items-center">
+                    <span class="text-2xl mr-3">${step.icon}</span>
+                    <span>${step.title}</span>
+                </h3>
+                <div></div>
+            `;
+            orchestrationFlow.appendChild(card);
+            
+            card.querySelector('div').innerHTML = step.content; // Render static content first
+
+            setTimeout(async () => {
+                card.classList.remove('opacity-0', 'translate-y-5');
+                nextBtn.disabled = true;
+                loadingIndicator.classList.remove('hidden');
+
+                const actionResult = await step.action(); // Execute agent's action
+
+                loadingIndicator.classList.add('hidden');
+                
+                if (actionResult && actionResult.success === false) {
+                     // If an agent action fails, stop the flow and reset
+                    await showModal("Analysis Halted", "An agent encountered an issue, analysis cannot proceed. Please correct input or try again.");
+                    resetAnalysisBtn.classList.remove('hidden'); // Allow user to reset
+                    nextBtn.classList.add('hidden');
+                    saveClaimBtn.classList.add('hidden');
+                    return;
+                }
+
+                nextBtn.disabled = false;
+
+                if (currentStep === steps.length - 1) {
+                    nextBtn.classList.add('hidden');
+                    saveClaimBtn.classList.remove('hidden');
+                    resetAnalysisBtn.classList.remove('hidden');
+                }
+            }, 50);
+        }
+    }
+
+    // --- Firebase / Firestore Operations ---
+
+    async function saveClaimToFirestore() {
+        if (!db || !userId) {
+            await showModal("Error", "Firestore is not initialized. Please wait for the user session to load or check console for errors.");
+            return;
+        }
+        const confirmSave = await showModal("Confirm Save", "Do you want to save this analysis to your past claims?", true);
+        if (confirmSave) {
+            try {
+                loadingIndicator.classList.remove('hidden');
+                const claimsCollectionRef = collection(db, `artifacts/${window.__app_id}/users/${userId}/claims`);
+                await addDoc(claimsCollectionRef, analysisResult);
+                loadingIndicator.classList.add('hidden');
+                await showModal("Success", "Claim analysis saved successfully!");
+                saveClaimBtn.classList.add('hidden');
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                loadingIndicator.classList.add('hidden');
+                await showModal("Error", `Failed to save claim: ${e.message}`);
+            }
+        }
+    }
+
+    async function loadPastClaims() {
+        if (!db || !userId) {
+            // This function might be called before Firebase is fully initialized via onAuthStateChanged.
+            // The return here handles that, and the firebaseAuthReady event listener will trigger it again.
+            return;
+        }
+
+        pastClaimsList.innerHTML = '';
+        noClaimsMessage.textContent = 'Loading past claims...';
+        noClaimsMessage.classList.remove('hidden');
+
+        try {
+            const claimsCollectionRef = collection(db, `artifacts/${window.__app_id}/users/${userId}/claims`);
+            const q = query(claimsCollectionRef, orderBy('timestamp', 'desc'));
+
+            onSnapshot(q, (snapshot) => {
+                pastClaimsList.innerHTML = '';
+                if (snapshot.empty) {
+                    noClaimsMessage.textContent = 'No past claims found.';
+                    noClaimsMessage.classList.remove('hidden');
+                } else {
+                    noClaimsMessage.classList.add('hidden');
+                    snapshot.forEach((doc) => {
+                        const claim = doc.data();
+                        const claimDate = new Date(claim.timestamp).toLocaleString();
+                        const card = document.createElement('div');
+                        card.className = 'bg-gray-100 p-4 rounded-lg shadow-sm cursor-pointer hover:bg-gray-200 transition-colors';
+                        card.innerHTML = `
+                            <p class="font-semibold text-gray-800">Claim on ${claim.initialData.product} (VIN: ${claim.initialData.vin})</p>
+                            <p class="text-sm text-gray-600">Analyzed: ${claimDate}</p>
+                            <p class="text-sm text-gray-600">Part: ${claim.initialData.part}</p>
+                            <p class="text-sm text-gray-600">Status: ${claim.warrantyEligibility ? (claim.warrantyEligibility.isEligibleFinal ? 'Eligible' : 'Not Eligible') : 'N/A'}</p>
+                        `;
+                        card.onclick = () => displayPastClaimDetails(claim);
+                        pastClaimsList.appendChild(card);
+                    });
+                }
+            }, (error) => {
+                console.error("Error listening to claims: ", error);
+                noClaimsMessage.textContent = `Error loading claims: ${error.message}`;
+            });
+        } catch (e) {
+            console.error("Error setting up claims listener: ", e);
+            noClaimsMessage.textContent = `Error initializing claims view: ${e.message}`;
+        }
+    }
+
+    async function displayPastClaimDetails(claimData) {
+        clearAnalysisFlow();
+        toggleFormInputs(true);
+        generateClaimBtn.classList.add('hidden');
+
+        productInput.value = claimData.initialData.product;
+        partInput.value = claimData.initialData.part;
+        vinInput.value = claimData.initialData.vin;
+        odometerInput.value = claimData.initialData.odometer;
+        customerComplaintInput.value = claimData.initialData.customerComplaint;
+        technicianDiagnosisInput.value = claimData.initialData.technicianDiagnosis;
+        purchaseDateInput.value = new Date(claimData.initialData.purchaseDate).toISOString().split('T')[0];
+
+        analysisResult = JSON.parse(JSON.stringify(claimData));
+
+        orchestrationFlow.innerHTML = `
+            <div class="bg-teal-50 border border-teal-200 p-4 rounded-lg text-teal-800 text-center font-bold">
+                Displaying Analysis for Past Claim (Read-Only)
+            </div>
+            <div id="replayed-workflow" class="space-y-6"></div>
+        `;
+        const replayedWorkflowDiv = document.getElementById('replayed-workflow');
+
+        for (let i = 0; i < steps.length; i++) {
+            const step = steps[i];
+            const card = document.createElement('div');
+            card.id = `card-${step.id}`;
+            card.className = 'agent-card bg-white p-6 rounded-xl shadow-md';
+            card.innerHTML = `
+                <h3 class="text-xl font-semibold text-teal-700 border-b pb-3 mb-4 flex items-center">
+                    <span class="text-2xl mr-3">${step.icon}</span>
+                    <span>${step.title}</span>
+                </h3>
+                <div></div>
+            `;
+            replayedWorkflowDiv.appendChild(card);
+
+            const contentDiv = card.querySelector('div');
+            contentDiv.innerHTML = step.content;
+
+            // Update dynamic parts based on stored data
+            if (step.id === 'vin-agent') {
+                const vinDetails = analysisResult.vinDetails;
+                const eligibility = analysisResult.warrantyEligibility;
+                const initialData = analysisResult.initialData;
+
+                const timeCoverageText = card.querySelector('#time-coverage-text');
+                const mileageCoverageText = card.querySelector('#mileage-coverage-text');
+                const timeBar = card.querySelector('#time-bar');
+                const mileageBar = card.querySelector('#mileage-bar');
+                const eligibilityStatusText = card.querySelector('#eligibility-status-text');
+
+                timeCoverageText.textContent = `${eligibility.yearsSinceInService} of ${vinDetails.standardWarrantyYears.toFixed(1)} Years Used`;
+                mileageCoverageText.textContent = `${initialData.odometer.toLocaleString()} of ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles Used`;
+
+                const timePercent = Math.min(100, (parseFloat(eligibility.yearsSinceInService) / vinDetails.standardWarrantyYears) * 100);
+                const mileagePercent = Math.min(100, (initialData.odometer / vinDetails.standardWarrantyMiles) * 100);
+
+                timeBar.style.width = `${timePercent}%`;
+                mileageBar.style.width = `${mileagePercent}%`;
+
+                if (!eligibility.isEligibleByDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
+                if (!eligibility.isEligibleByMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
+
+                eligibilityStatusText.textContent = `Finding: ${eligibility.isEligibleFinal ? '✅ Vehicle is ELIGIBLE for warranty coverage.' : '❌ Vehicle is NOT ELIGIBLE for warranty coverage.'}`;
+                eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold ${eligibility.isEligibleFinal ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-rose-50 border border-rose-200 text-rose-800'}`;
+
+            } else if (step.id === 'tsb-agent') {
+                const tsbResultsDiv = card.querySelector('#tsb-results');
+                const relevantTsbs = analysisResult.tsbsFound || [];
+                 if (relevantTsbs.length > 0) {
+                    tsbResultsDiv.innerHTML = relevantTsbs.map(tsb => `
+                        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
+                            <p class="font-semibold">${tsb.type.toUpperCase()} ${tsb.id}: ${tsb.title}</p>
+                            <p class="text-sm mt-1">${tsb.description}</p>
+                        </div>
+                    `).join('');
+                } else {
+                    tsbResultsDiv.innerHTML = `<p class="p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700"><strong>Finding:</strong> No active TSBs or Recalls found for this specific issue or VIN in the database.</p>`;
+                }
+            } else if (step.id === 'nlp-agent') {
+                const simulatedFailureMatch = analysisResult.nlpAnalysis;
+                const nlpFailureDisplay = card.querySelector('#nlp-failure-display');
+                const nlpMatchedKeywords = card.querySelector('#nlp-matched-keywords');
+
+                nlpFailureDisplay.textContent = `${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}`;
+                const keywordsHtml = simulatedFailureMatch.matchedKeywords.length > 0
+                    ? `Matched keywords: ${simulatedFailureMatch.matchedKeywords.map(k => `<span class="bg-gray-200 text-gray-700 px-2 py-1 rounded">${k}</span>`).join(' ')}`
+                    : `No specific keywords matched locally.`;
+                nlpMatchedKeywords.innerHTML = keywordsHtml;
+
+                const ctx = card.querySelector('#confidenceChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Confidence', ''],
+                        datasets: [{
+                            data: [simulatedFailureMatch.confidence, 100 - simulatedFailureMatch.confidence],
+                            backgroundColor: ['#0d9488', '#e2e8f0'],
+                            borderColor: ['#fff'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (context.parsed > 0) {
+                                            label = `Confidence: ${context.parsed}%`;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: `${simulatedFailureMatch.confidence}%`,
+                                position: 'top',
+                                align: 'center',
+                                font: { size: 24, weight: 'bold', family: 'Inter' },
+                                color: '#0d9488',
+                                padding: { top: 60 }
+                            }
+                        }
+                    }
+                });
+
+            } else if (step.id === 'gemini-agent') {
+                card.querySelector('#gemini-failure-display span').textContent = analysisResult.geminiAnalysis;
+
+            } else if (step.id === 'docs-agent') {
+                const requiredDocsList = card.querySelector('#required-docs-list');
+                requiredDocsList.innerHTML = (analysisResult.requiredDocuments || []).map(d => `<li>${d}</li>`).join('');
+
+            } else if (step.id === 'summary') {
+                const finalStatusDiv = card.querySelector('#final-status');
+                const finalActionsDiv = card.querySelector('#final-actions');
+
+                if (analysisResult.warrantyEligibility.isEligibleFinal) {
+                    finalStatusDiv.className = "mt-4 p-4 border border-teal-500 bg-teal-50 rounded-lg text-teal-900";
+                    finalStatusDiv.innerHTML = `
+                        <p><strong>Status:</strong> <span class="font-bold">ELIGIBLE FOR WARRANTY - APPROVED PENDING DOCUMENTATION</span></p>
+                        <p><strong>System-Recommended Failure Code:</strong> ${analysisResult.geminiAnalysis}</p>
+                        <p class="mt-2"><strong>Action:</strong> Submit claim with the recommended failure code and ensure all required documents are attached.</p>
+                    `;
+                    finalActionsDiv.innerHTML = `
+                        <button class="bg-teal-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-teal-700 transition-all" onclick="window.showModal('Claim Submission', 'In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
+                        <button class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition-all ml-4" onclick="window.showModal('Provide Feedback', 'In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
+                    `;
+                } else {
+                    finalStatusDiv.className = "mt-4 p-4 border border-rose-500 bg-rose-50 rounded-lg text-rose-900";
+                    finalStatusDiv.innerHTML = `
+                        <p><strong>Status:</strong> <span class="font-bold">NOT ELIGIBLE FOR WARRANTY</span></p>
+                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles).</p>
+                        <p class="mt-2"><strong>Action:</strong> This process would typically transition to a customer-pay repair or a goodwill request, if applicable.</p>
+                    `;
+                    finalActionsDiv.innerHTML = `
+                        <p class="text-gray-600 italic">No direct submission to OEM WMS required for non-eligible claims.</p>
+                    `;
+                }
+                saveClaimBtn.classList.add('hidden');
+            }
+        }
+        nextBtn.classList.add('hidden');
+        resetAnalysisBtn.classList.remove('hidden');
+    }
+
+
+    // --- Event Listeners ---
+    claimForm.addEventListener("submit", async function(event) {
+        event.preventDefault();
+        clearAnalysisFlow();
+        toggleFormInputs(true);
+        currentStep = -1;
+        generateClaimBtn.classList.add('hidden');
+        nextBtn.classList.remove('hidden');
+        await showNextStep();
+    });
+
+    nextBtn.addEventListener('click', showNextStep);
+    saveClaimBtn.addEventListener('click', saveClaimToFirestore);
+
+    resetAnalysisBtn.addEventListener('click', () => {
+        clearAnalysisFlow();
+        toggleFormInputs(false);
+        generateClaimBtn.classList.remove('hidden');
+        saveClaimBtn.classList.add('hidden');
+        resetAnalysisBtn.classList.add('hidden');
+    });
+
+</script>
+</body>
+</html>
