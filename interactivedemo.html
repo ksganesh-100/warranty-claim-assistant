@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Multi-Agent Warranty System Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Calm Neutrals with Teal Accent -->
+    <!-- Application Structure Plan: The application is designed as a linear, interactive story that mirrors the workflow from the source report. A user initiates an "analysis" and is guided step-by-step through each agent's task. This structure was chosen because the report's core content is a process. Visualizing this process sequentially makes the system's architecture and the role of each agent clear and easy to understand, turning a descriptive document into a live demonstration. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Overall system workflow -> Goal: Organize/Inform -> Viz: Sequential reveal of agent 'cards' using HTML/CSS -> Interaction: User clicks 'Next' to advance -> Justification: Creates an engaging, story-like flow that simplifies a complex process.
+        - Report Info: VIN/Warranty Eligibility -> Goal: Compare -> Viz: Horizontal bar charts (HTML/CSS) for Time/Mileage vs. Allowed -> Interaction: Visual comparison -> Justification: More intuitive than reading numbers.
+        - Report Info: NLP Confidence Score -> Goal: Inform -> Viz: Donut chart (Chart.js) -> Interaction: Hover for tooltip -> Justification: Visually represents the percentage value effectively.
+        - Report Info: Agent Roles (TSB, Gemini, Docs) -> Goal: Inform -> Viz: Styled text blocks with Unicode icons (e.g., 📢, 💡, 📋) -> Interaction: Reading -> Justification: Clearly presents findings with minimal visual clutter.
+        - Library/Method: Vanilla JS for flow control, Chart.js for the donut chart, TailwindCSS for all styling. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Inter', sans-serif;
+        }
+        .agent-card {
+            transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+            border: 1px solid #e2e8f0;
+        }
+        .progress-bar-bg {
+            background-color: #e2e8f0;
+        }
+        .progress-bar {
+            background-color: #0d9488; /* Teal-600 */
+            transition: width 0.5s ease-out;
+        }
+        .progress-bar.expired {
+            background-color: #e11d48; /* Rose-600 */
+        }
+        .chart-container {
+            position: relative;
+            margin: auto;
+            height: 150px;
+            width: 150px;
+        }
+    </style>
+     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-teal-700">Interactive Multi-Agent System Demo</h1>
+            <p class="text-gray-600 mt-2">A visual demonstration of the AI-powered warranty claim processing workflow.</p>
+        </header>
+
+        <section id="source-data" class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-6">
+            <h2 class="text-xl font-semibold text-gray-700 border-b pb-3 mb-4 flex items-center">
+                <span class="text-2xl mr-3">📥</span> Initial Claim Data
+            </h2>
+            <p class="text-gray-600 mb-6">The process begins when a claim is submitted. This section represents the initial data provided to the Master Agent.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm text-gray-700">
+                <div><strong>Product Model:</strong> Tractor X120</div>
+                <div><strong>Affected Component:</strong> Gearbox</div>
+                <div><strong>VIN:</strong> 1HGJM1770AA00001</div>
+                <div><strong>Odometer:</strong> 30,000 miles</div>
+                <div class="md:col-span-2"><strong>Customer Complaint:</strong> "I hear a grinding noise when shifting gears, especially from 2nd to 3rd."</div>
+                <div class="md:col-span-2"><strong>Technician Diagnosis:</strong> "Upon inspection, found excessive play in the gearbox synchronizer ring for 2nd-3rd gear, indicating premature wear and tear."</div>
+            </div>
+        </section>
+
+        <div class="text-center my-8">
+            <button id="start-btn" class="bg-teal-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-teal-700 transition-all transform hover:scale-105">
+                Begin Analysis
+            </button>
+        </div>
+        
+        <div id="orchestration-flow" class="space-y-6">
+            <!-- Agent cards will be injected here -->
+        </div>
+
+        <div class="text-center mt-8">
+             <button id="next-btn" class="hidden bg-gray-800 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-gray-900 transition-all">
+                Next Step &rarr;
+            </button>
+            <button id="reset-btn" class="hidden bg-rose-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-rose-700 transition-all">
+                Reset Demo
+            </button>
+        </div>
+
+    </div>
+
+<script>
+    const steps = [
+        {
+            id: 'master-agent',
+            title: 'Master Agent: Claim Orchestrator',
+            icon: '🤖',
+            content: `
+                <p>The Master Agent receives the initial claim data and begins the orchestration process. It is responsible for calling each specialized helper agent in sequence, collecting their findings, and assembling the final summary.</p>
+                <p class="mt-4 p-3 bg-teal-50 border border-teal-200 rounded-lg text-teal-800"><strong>Action:</strong> Initializing workflow and preparing to call the first helper agent.</p>
+            `
+        },
+        {
+            id: 'vin-agent',
+            title: 'VIN & Warranty Eligibility Agent',
+            icon: '🛡️',
+            content: `
+                <p>This agent validates the vehicle's warranty status against OEM policies.</p>
+                <div class="mt-4 space-y-4">
+                    <div>
+                        <div class="flex justify-between text-sm font-medium mb-1"><span>Time Coverage</span><span>1.5 of 3.0 Years Used</span></div>
+                        <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="time-bar" class="progress-bar h-full rounded-full" style="width: 50%;"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm font-medium mb-1"><span>Mileage Coverage</span><span>30,000 of 36,000 Miles Used</span></div>
+                        <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="mileage-bar" class="progress-bar h-full rounded-full" style="width: 83.3%;"></div></div>
+                    </div>
+                </div>
+                <p class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 font-semibold"><strong>Finding:</strong> ✅ Vehicle is ELIGIBLE for warranty coverage.</p>
+            `
+        },
+        {
+            id: 'tsb-agent',
+            title: 'TSB & Recall Lookup Agent',
+            icon: '📢',
+            content: `
+                <p>The agent scans databases for any Technical Service Bulletins (TSBs) or recalls related to the reported issue.</p>
+                <p class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800"><strong>Finding:</strong> <strong>Found TSB 24-005-TRX:</strong> "Gearbox Synchronizer Grinding Noise." This bulletin is relevant to the technician's diagnosis and may provide specific repair instructions.</p>
+            `
+        },
+        {
+            id: 'nlp-agent',
+            title: 'NLP Early Warning Agent',
+            icon: '🧠',
+            content: `
+                <p>This agent performs a rapid, preliminary analysis of the technician's diagnosis using a local knowledge base.</p>
+                <div class="flex flex-col md:flex-row items-center justify-center gap-6 mt-4">
+                    <div class="chart-container"><canvas id="confidenceChart"></canvas></div>
+                    <div class="flex-1">
+                        <p class="font-semibold text-gray-700">Preliminary Suggestion:</p>
+                        <p class="text-xl font-bold text-amber-600">F213 - Gearbox Synchronizer Failure</p>
+                        <p class="mt-2 text-sm text-gray-500">Matched Keywords: <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded">gearbox</span> <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded">synchronizer</span> <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded">grinding</span></p>
+                    </div>
+                </div>
+            `,
+            onRender: () => {
+                const ctx = document.getElementById('confidenceChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Confidence', ''],
+                        datasets: [{
+                            data: [85, 15],
+                            backgroundColor: ['#0d9488', '#e2e8f0'],
+                            borderColor: ['#fff'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { enabled: false },
+                            title: {
+                                display: true,
+                                text: '85%',
+                                position: 'top',
+                                align: 'center',
+                                font: { size: 24, weight: 'bold', family: 'Inter' },
+                                color: '#0d9488',
+                                padding: { top: 60 }
+                            }
+                        }
+                    }
+                });
+            }
+        },
+        {
+            id: 'gemini-agent',
+            title: 'Advanced AI (Gemini) Diagnosis Agent',
+            icon: '💡',
+            content: `
+                <p>For higher accuracy, the diagnosis is sent to an advanced AI model for a definitive recommendation.</p>
+                <p class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
+                    <strong class="text-blue-900">System-Recommended Failure Code:</strong>
+                    <span class="block text-xl font-bold mt-1">F213 - Gearbox Synchronizer Failure</span>
+                </p>
+                <p class="text-sm text-center mt-2 text-gray-500">Advanced analysis confirms the preliminary finding.</p>
+            `
+        },
+        {
+            id: 'docs-agent',
+            title: 'Documentation Compiler Agent',
+            icon: '📋',
+            content: `
+                <p>Based on the final failure code and warranty status, this agent compiles a list of required documents for the claim submission.</p>
+                <ul class="list-disc list-inside mt-4 p-4 bg-gray-50 rounded-lg space-y-2">
+                    <li>Completed Service Order Form (with VIN/Serial No.)</li>
+                    <li>Technician's Detailed Diagnostic Report</li>
+                    <li>High-Resolution Photo/Video of Damaged Gearbox Components</li>
+                    <li>Reference to TSB 24-005-TRX</li>
+                </ul>
+            `
+        },
+        {
+            id: 'summary',
+            title: 'Analysis Complete: Consolidated Summary',
+            icon: '✅',
+            content: `
+                <p>All agents have completed their tasks. The Master Agent has consolidated the findings into a final summary, ready for the warranty processor.</p>
+                <div class="mt-4 p-4 border border-teal-500 bg-teal-50 rounded-lg text-teal-900">
+                    <p><strong>Status:</strong> <span class="font-bold">APPROVED PENDING DOCUMENTATION</span></p>
+                    <p><strong>Action:</strong> Submit claim with Failure Code <strong>F213</strong> and all required documents.</p>
+                </div>
+            `
+        }
+    ];
+
+    let currentStep = -1;
+    const orchestrationFlow = document.getElementById('orchestration-flow');
+    const startBtn = document.getElementById('start-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const resetBtn = document.getElementById('reset-btn');
+
+    function showNextStep() {
+        if (currentStep < steps.length - 1) {
+            currentStep++;
+            const step = steps[currentStep];
+
+            const card = document.createElement('div');
+            card.id = `card-${step.id}`;
+            card.className = 'agent-card bg-white p-6 rounded-xl shadow-md opacity-0 transform translate-y-5';
+            card.innerHTML = `
+                <h3 class="text-xl font-semibold text-teal-700 border-b pb-3 mb-4 flex items-center">
+                    <span class="text-2xl mr-3">${step.icon}</span>
+                    <span>${step.title}</span>
+                </h3>
+                <div>${step.content}</div>
+            `;
+            orchestrationFlow.appendChild(card);
+            
+            // We need a small delay for the card to be in the DOM before we can transition it.
+            setTimeout(() => {
+                card.classList.remove('opacity-0', 'translate-y-5');
+                if (step.onRender) {
+                    step.onRender();
+                }
+            }, 50);
+
+            if (currentStep === steps.length - 1) {
+                nextBtn.classList.add('hidden');
+                resetBtn.classList.remove('hidden');
+            }
+        }
+    }
+
+    startBtn.addEventListener('click', () => {
+        startBtn.classList.add('hidden');
+        nextBtn.classList.remove('hidden');
+        showNextStep();
+    });
+
+    nextBtn.addEventListener('click', showNextStep);
+
+    resetBtn.addEventListener('click', () => {
+        currentStep = -1;
+        orchestrationFlow.innerHTML = '';
+        resetBtn.classList.add('hidden');
+        startBtn.classList.remove('hidden');
+    });
+
+</script>
+</body>
+</html>
