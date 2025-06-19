@@ -163,11 +163,11 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm text-gray-700">
                     <div>
                         <label for="product" class="block text-sm font-medium text-gray-700">Product Model</label>
-                        <input type="text" id="product" value="Tractor X120" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        <input type="text" id="product" value="BMW 3 Series" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
                     </div>
                     <div>
                         <label for="part" class="block text-sm font-medium text-gray-700">Affected Component</label>
-                        <input type="text" id="part" value="gearbox" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        <input type="text" id="part" value="Gearbox" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
                     </div>
                     <div>
                         <label for="vin" class="block text-sm font-medium text-gray-700">VIN (e.g., 1HGJM1770AA00001)</label>
@@ -513,7 +513,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
             title: 'VIN & Warranty Eligibility Agent',
             icon: '🛡️',
             content: `
-                <p>This agent connects to a VIN lookup service (simulated here) to retrieve vehicle details and then cross-references with OEM warranty policies.</p>
+                <p>This agent connects to a Edmund's VIN lookup service to retrieve vehicle details and then cross-references with OEM warranty policies.</p>
                 <div class="mt-4 space-y-4">
                     <div>
                         <div class="flex justify-between text-sm font-medium mb-1"><span>Time Coverage</span><span id="time-coverage-text"></span></div>
@@ -576,7 +576,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
             title: 'TSB & Recall Lookup Agent',
             icon: '📢',
             content: `
-                <p>The agent scans databases for any Technical Service Bulletins (TSBs) or recalls related to the reported issue based on product and component details.</p>
+                <p>The TSB & Recall Lookup Agent cross-references the vehicle's VIN and current diagnostic findings against manufacturer-issued Technical Service Bulletins and safety recall advisories. This helps pinpoint if the reported issue aligns with any known systemic problems or required repairs, ensuring adherence to OEM best practices and compliance.</p>
                 <p id="tsb-info-text" class="mt-4 p-3 rounded-lg"></p>
             `,
             action: async () => {
