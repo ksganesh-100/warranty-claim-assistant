@@ -139,7 +139,7 @@
                         <input type="date" id="purchaseDate" value="2023-01-15" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
                     </div>
                     <div class="md:col-span-2 text-center">
-                        <button type="submit" id="generateClaimBtn" class="bg-teal-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-teal-700 transition-all transform hover:scale-105">
+                        <button type="submit" id="generateClaimBtn" class="bg-teal-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-teal-700 transition-all transform hover:scale-105" disabled>
                             Begin Multi-Agent Analysis
                         </button>
                     </div>
@@ -344,6 +344,7 @@
                 console.log("Firebase Auth Ready. User ID:", userId);
                 document.getElementById('user-status').textContent = `User ID: ${userId}`;
                 document.getElementById('user-status').classList.remove('hidden');
+                generateClaimBtn.disabled = false; // Enable the button now that Firebase is ready
                 await ensureFirestoreDemoData(); // Ensure data is present after auth
                 loadPastClaims(); // Load claims only after auth is ready and demo data is ensured
             } else if (initialAuthToken) {
@@ -392,7 +393,7 @@
     const generateClaimBtn = document.getElementById('generateClaimBtn');
     const pastClaimsList = document.getElementById('past-claims-list');
     const noClaimsMessage = document.getElementById('no-claims-message');
-    const formInputs = [productInput, partInput, vinInput, odometerInput, customerComplaintInput, technicianDiagnosisInput, purchaseDateInput, generateClaimBtn];
+    const formInputs = [productInput, partInput, vinInput, odometerInput, customerComplaintInput, technicianDiagnosisInput, purchaseDateInput]; // Removed generateClaimBtn as it's directly handled
 
     // Modal elements
     const customModal = document.getElementById('customModal');
@@ -456,6 +457,7 @@
 
     // VIN Lookup Agent: Fetches VIN data from Firestore
     async function getVinDetails(vin) {
+        console.log("Attempting VIN lookup. DB:", db); // Debugging: Check if db is defined
         if (!db) {
             console.error("Firestore DB not available for VIN lookup.");
             return null;
@@ -470,6 +472,7 @@
                 const data = vinDocSnap.data();
                 // Convert ISO string to Date object if needed for calculations
                 data.inServiceDate = new Date(data.inServiceDate);
+                console.log("VIN data found:", data); // Debugging: Log data found
                 return data;
             } else {
                 console.warn(`VIN ${vin} not found in Firestore. Returning generic data.`);
@@ -888,7 +891,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                         <p class="text-gray-600 italic">No direct submission to OEM WMS required for non-eligible claims.</p>
                     `;
                 }
-                saveClaimBtn.classList.remove('hidden');
+                saveClaimBtn.classList.add('hidden');
                 return { success: true };
             }
         }
@@ -1035,7 +1038,9 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
         odometerInput.value = claimData.initialData.odometer;
         customerComplaintInput.value = claimData.initialData.customerComplaint;
         technicianDiagnosisInput.value = claimData.initialData.technicianDiagnosis;
-        purchaseDateInput.value = new Date(claimData.initialData.purchaseDate).toISOString().split('T')[0];
+        // Ensure purchaseDate is set correctly for the input field
+        purchaseDateInput.value = claimData.initialData.purchaseDate ? new Date(claimData.initialData.purchaseDate).toISOString().split('T')[0] : '';
+
 
         analysisResult = JSON.parse(JSON.stringify(claimData));
 
@@ -1076,20 +1081,28 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 const mileageBar = card.querySelector('#mileage-bar');
                 const eligibilityStatusText = card.querySelector('#eligibility-status-text');
 
-                timeCoverageText.textContent = `${eligibility.yearsSinceInService} of ${vinDetails.standardWarrantyYears.toFixed(1)} Years Used`;
-                mileageCoverageText.textContent = `${initialData.odometer.toLocaleString()} of ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles Used`;
+                // Ensure vinDetails and eligibility exist before accessing their properties
+                if (vinDetails && eligibility) {
+                    timeCoverageText.textContent = `${eligibility.yearsSinceInService} of ${vinDetails.standardWarrantyYears.toFixed(1)} Years Used`;
+                    mileageCoverageText.textContent = `${initialData.odometer.toLocaleString()} of ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles Used`;
 
-                const timePercent = Math.min(100, (parseFloat(eligibility.yearsSinceInService) / vinDetails.standardWarrantyYears) * 100);
-                const mileagePercent = Math.min(100, (initialData.odometer / vinDetails.standardWarrantyMiles) * 100);
+                    const timePercent = Math.min(100, (parseFloat(eligibility.yearsSinceInService) / vinDetails.standardWarrantyYears) * 100);
+                    const mileagePercent = Math.min(100, (initialData.odometer / vinDetails.standardWarrantyMiles) * 100);
 
-                timeBar.style.width = `${timePercent}%`;
-                mileageBar.style.width = `${mileagePercent}%`;
+                    timeBar.style.width = `${timePercent}%`;
+                    mileageBar.style.width = `${mileagePercent}%`;
 
-                if (!eligibility.isEligibleByDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
-                if (!eligibility.isEligibleByMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
+                    if (!eligibility.isEligibleByDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
+                    if (!eligibility.isEligibleByMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
 
-                eligibilityStatusText.textContent = `Finding: ${eligibility.isEligibleFinal ? '✅ Vehicle is ELIGIBLE for warranty coverage.' : '❌ Vehicle is NOT ELIGIBLE for warranty coverage.'}`;
-                eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold ${eligibility.isEligibleFinal ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-rose-50 border border-rose-200 text-rose-800'}`;
+                    eligibilityStatusText.textContent = `Finding: ${eligibility.isEligibleFinal ? '✅ Vehicle is ELIGIBLE for warranty coverage.' : '❌ Vehicle is NOT ELIGIBLE for warranty coverage.'}`;
+                    eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold ${eligibility.isEligibleFinal ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-rose-50 border border-rose-200 text-rose-800'}`;
+                } else {
+                    timeCoverageText.textContent = `N/A`;
+                    mileageCoverageText.textContent = `N/A`;
+                    eligibilityStatusText.textContent = `Finding: Eligibility data not available.`;
+                    eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold bg-gray-50 border border-gray-200 text-gray-700`;
+                }
 
             } else if (step.id === 'tsb-agent') {
                 const tsbResultsDiv = card.querySelector('#tsb-results');
@@ -1109,56 +1122,61 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 const nlpFailureDisplay = card.querySelector('#nlp-failure-display');
                 const nlpMatchedKeywords = card.querySelector('#nlp-matched-keywords');
 
-                nlpFailureDisplay.textContent = `${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}`;
-                const keywordsHtml = simulatedFailureMatch.matchedKeywords.length > 0
-                    ? `Matched keywords: ${simulatedFailureMatch.matchedKeywords.map(k => `<span class="bg-gray-200 text-gray-700 px-2 py-1 rounded">${k}</span>`).join(' ')}`
-                    : `No specific keywords matched locally.`;
-                nlpMatchedKeywords.innerHTML = keywordsHtml;
+                if (simulatedFailureMatch) {
+                    nlpFailureDisplay.textContent = `${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}`;
+                    const keywordsHtml = simulatedFailureMatch.matchedKeywords && simulatedFailureMatch.matchedKeywords.length > 0
+                        ? `Matched keywords: ${simulatedFailureMatch.matchedKeywords.map(k => `<span class="bg-gray-200 text-gray-700 px-2 py-1 rounded">${k}</span>`).join(' ')}`
+                        : `No specific keywords matched locally.`;
+                    nlpMatchedKeywords.innerHTML = keywordsHtml;
 
-                const ctx = card.querySelector('#confidenceChart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Confidence', ''],
-                        datasets: [{
-                            data: [simulatedFailureMatch.confidence, 100 - simulatedFailureMatch.confidence],
-                            backgroundColor: ['#0d9488', '#e2e8f0'],
-                            borderColor: ['#fff'],
-                            borderWidth: 2
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        cutout: '70%',
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        let label = context.label || '';
-                                        if (context.parsed > 0) {
-                                            label = `Confidence: ${context.parsed}%`;
+                    const ctx = card.querySelector('#confidenceChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Confidence', ''],
+                            datasets: [{
+                                data: [simulatedFailureMatch.confidence, 100 - simulatedFailureMatch.confidence],
+                                backgroundColor: ['#0d9488', '#e2e8f0'],
+                                borderColor: ['#fff'],
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '70%',
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            let label = context.label || '';
+                                            if (context.parsed > 0) {
+                                                label = `Confidence: ${context.parsed}%`;
+                                            }
+                                            return label;
                                         }
-                                        return label;
                                     }
+                                },
+                                title: {
+                                    display: true,
+                                    text: `${simulatedFailureMatch.confidence}%`,
+                                    position: 'top',
+                                    align: 'center',
+                                    font: { size: 24, weight: 'bold', family: 'Inter' },
+                                    color: '#0d9488',
+                                    padding: { top: 60 }
                                 }
-                            },
-                            title: {
-                                display: true,
-                                text: `${simulatedFailureMatch.confidence}%`,
-                                position: 'top',
-                                align: 'center',
-                                font: { size: 24, weight: 'bold', family: 'Inter' },
-                                color: '#0d9488',
-                                padding: { top: 60 }
                             }
                         }
-                    }
-                });
+                    });
+                } else {
+                    nlpFailureDisplay.textContent = 'N/A';
+                    nlpMatchedKeywords.innerHTML = 'NLP analysis data not available.';
+                }
 
             } else if (step.id === 'gemini-agent') {
-                card.querySelector('#gemini-failure-display span').textContent = analysisResult.geminiAnalysis;
+                card.querySelector('#gemini-failure-display span').textContent = analysisResult.geminiAnalysis || 'N/A';
 
             } else if (step.id === 'docs-agent') {
                 const requiredDocsList = card.querySelector('#required-docs-list');
@@ -1168,11 +1186,11 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 const finalStatusDiv = card.querySelector('#final-status');
                 const finalActionsDiv = card.querySelector('#final-actions');
 
-                if (analysisResult.warrantyEligibility.isEligibleFinal) {
+                if (analysisResult.warrantyEligibility && analysisResult.warrantyEligibility.isEligibleFinal) {
                     finalStatusDiv.className = "mt-4 p-4 border border-teal-500 bg-teal-50 rounded-lg text-teal-900";
                     finalStatusDiv.innerHTML = `
                         <p><strong>Status:</strong> <span class="font-bold">ELIGIBLE FOR WARRANTY - APPROVED PENDING DOCUMENTATION</span></p>
-                        <p><strong>System-Recommended Failure Code:</strong> ${analysisResult.geminiAnalysis}</p>
+                        <p><strong>System-Recommended Failure Code:</strong> ${analysisResult.geminiAnalysis || 'N/A'}</p>
                         <p class="mt-2"><strong>Action:</strong> Submit claim with the recommended failure code and ensure all required documents are attached.</p>
                     `;
                     finalActionsDiv.innerHTML = `
@@ -1183,7 +1201,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                     finalStatusDiv.className = "mt-4 p-4 border border-rose-500 bg-rose-50 rounded-lg text-rose-900";
                     finalStatusDiv.innerHTML = `
                         <p><strong>Status:</strong> <span class="font-bold">NOT ELIGIBLE FOR WARRANTY</span></p>
-                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles).</p>
+                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility ? analysisResult.warrantyEligibility.yearsSinceInService : 'N/A'} years / ${analysisResult.initialData.odometer.toLocaleString()} miles).</p>
                         <p class="mt-2"><strong>Action:</strong> This process would typically transition to a customer-pay repair or a goodwill request, if applicable.</p>
                     `;
                     finalActionsDiv.innerHTML = `
