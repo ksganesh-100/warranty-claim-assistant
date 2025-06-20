@@ -75,6 +75,9 @@
         .progress-bar.expired {
             background-color: #e11d48; /* Rose-600 */
         }
+        .progress-bar.active-check {
+            background-color: #10B981; /* Green-500 */
+        }
         .chart-container {
             position: relative;
             margin: auto;
@@ -359,8 +362,8 @@
             inServiceDate: new Date(), // Default to today if no specific logic
             standardWarrantyYears: 3,
             standardWarrantyMiles: 36000,
-            extendedWarrantyYears: 0, // New field for extended warranty
-            extendedWarrantyMiles: 0  // New field for extended warranty
+            hasExtendedServiceContract: false, // New field
+            extendedContractPremiumsPaid: false // New field
         };
 
         if (vin.includes("TRX")) { // Example for Tractor X120
@@ -371,8 +374,8 @@
                 inServiceDate: new Date("2023-02-15"),
                 standardWarrantyYears: 3,
                 standardWarrantyMiles: 36000,
-                extendedWarrantyYears: 2, // Example extended warranty
-                extendedWarrantyMiles: 24000 // Example extended warranty
+                hasExtendedServiceContract: true,
+                extendedContractPremiumsPaid: true
             };
         } else if (vin.includes("XYZ")) { // Example for a different vehicle
             vinData = {
@@ -382,8 +385,8 @@
                 inServiceDate: new Date("2023-06-01"),
                 standardWarrantyYears: 5,
                 standardWarrantyMiles: 60000,
-                extendedWarrantyYears: 3, // Example extended warranty
-                extendedWarrantyMiles: 40000 // Example extended warranty
+                hasExtendedServiceContract: true,
+                extendedContractPremiumsPaid: false // Premiums not paid for this example
             };
         }
 
@@ -506,20 +509,16 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 <p>This agent connects to a Edmund's VIN lookup service to retrieve vehicle details and then cross-references with OEM warranty policies.</p>
                 <div class="mt-4 space-y-4">
                     <div>
-                        <div class="flex justify-between text-sm font-medium mb-1"><span>Standard Warranty Time Coverage</span><span id="time-coverage-text"></span></div>
+                        <div class="flex justify-between text-sm font-medium mb-1"><span>Time Coverage</span><span id="time-coverage-text"></span></div>
                         <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="time-bar" class="progress-bar h-full rounded-full"></div></div>
                     </div>
                     <div>
-                        <div class="flex justify-between text-sm font-medium mb-1"><span>Standard Warranty Mileage Coverage</span><span id="mileage-coverage-text"></span></div>
+                        <div class="flex justify-between text-sm font-medium mb-1"><span>Mileage Coverage</span><span id="mileage-coverage-text"></span></div>
                         <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="mileage-bar" class="progress-bar h-full rounded-full"></div></div>
                     </div>
-                    <div id="extended-warranty-time-section" class="hidden">
-                        <div class="flex justify-between text-sm font-medium mb-1"><span>Extended Warranty Time Coverage</span><span id="extended-time-coverage-text"></span></div>
-                        <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="extended-time-bar" class="progress-bar h-full rounded-full"></div></div>
-                    </div>
-                    <div id="extended-warranty-mileage-section" class="hidden">
-                        <div class="flex justify-between text-sm font-medium mb-1"><span>Extended Warranty Mileage Coverage</span><span id="extended-mileage-coverage-text"></span></div>
-                        <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="extended-mileage-bar" class="progress-bar h-full rounded-full"></div></div>
+                    <div>
+                        <div class="flex justify-between text-sm font-medium mb-1"><span>Extended Service Contract</span><span id="extended-contract-text"></span></div>
+                        <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="extended-contract-bar" class="progress-bar h-full rounded-full"></div></div>
                     </div>
                 </div>
                 <p id="eligibility-status-text" class="mt-4 p-3 rounded-lg font-semibold"></p>
@@ -530,82 +529,64 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 const actualInServiceDate = vinDetails.inServiceDate;
                 const yearsSinceInService = (today - actualInServiceDate) / MS_PER_YEAR;
 
-                const isEligibleByStandardDate = yearsSinceInService <= vinDetails.standardWarrantyYears;
-                const isEligibleByStandardMileage = analysisResult.initialData.odometer <= vinDetails.standardWarrantyMiles;
-                let isEligibleByExtendedDate = false;
-                let isEligibleByExtendedMileage = false;
-                let isEligibleFinal = isEligibleByStandardDate && isEligibleByStandardMileage;
+                const isEligibleByDate = yearsSinceInService <= vinDetails.standardWarrantyYears;
+                const isEligibleByMileage = analysisResult.initialData.odometer <= vinDetails.standardWarrantyMiles;
+                const isExtendedContractActive = vinDetails.hasExtendedServiceContract && vinDetails.extendedContractPremiumsPaid;
+                const isEligibleFinal = (isEligibleByDate && isEligibleByMileage) || isExtendedContractActive;
 
-                // Update standard warranty bars
+                analysisResult.vinDetails = vinDetails;
+                analysisResult.warrantyEligibility = {
+                    inServiceDate: actualInServiceDate.toLocaleDateString(),
+                    warrantyType: `${vinDetails.standardWarrantyYears} Years / ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles`,
+                    yearsSinceInService: yearsSinceInService.toFixed(1),
+                    isEligibleByDate,
+                    isEligibleByMileage,
+                    hasExtendedServiceContract: vinDetails.hasExtendedServiceContract,
+                    extendedContractPremiumsPaid: vinDetails.extendedContractPremiumsPaid,
+                    isExtendedContractActive,
+                    isEligibleFinal
+                };
+
+                // Update content in the card
                 const timeCoverageText = document.getElementById('time-coverage-text');
                 const mileageCoverageText = document.getElementById('mileage-coverage-text');
+                const extendedContractText = document.getElementById('extended-contract-text'); // New element
                 const timeBar = document.getElementById('time-bar');
                 const mileageBar = document.getElementById('mileage-bar');
+                const extendedContractBar = document.getElementById('extended-contract-bar'); // New element
+                const eligibilityStatusText = document.getElementById('eligibility-status-text');
 
-                timeCoverageText.textContent = `${yearsSinceInService.toFixed(1)} of ${vinDetails.standardWarrantyYears.toFixed(1)} Years Used`;
+                timeCoverageText.textContent = `${analysisResult.warrantyEligibility.yearsSinceInService} of ${vinDetails.standardWarrantyYears.toFixed(1)} Years Used`;
                 mileageCoverageText.textContent = `${analysisResult.initialData.odometer.toLocaleString()} of ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles Used`;
 
                 const timePercent = Math.min(100, (yearsSinceInService / vinDetails.standardWarrantyYears) * 100);
                 const mileagePercent = Math.min(100, (analysisResult.initialData.odometer / vinDetails.standardWarrantyMiles) * 100);
 
                 timeBar.style.width = `${timePercent}%`;
-                mileageBar.style.width = `${mileagePercent}%`;
+                mileageBar.style.width = `${milegagePercent}%`;
 
-                if (!isEligibleByStandardDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
-                if (!isEligibleByStandardMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
+                if (!isEligibleByDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
+                if (!isEligibleByMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
 
-                // Check and update extended warranty bars if applicable
-                const extendedTimeSection = document.getElementById('extended-warranty-time-section');
-                const extendedMileageSection = document.getElementById('extended-warranty-mileage-section');
-                const extendedTimeCoverageText = document.getElementById('extended-time-coverage-text');
-                const extendedMileageCoverageText = document.getElementById('extended-mileage-coverage-text');
-                const extendedTimeBar = document.getElementById('extended-time-bar');
-                const extendedMileageBar = document.getElementById('extended-mileage-bar');
-
-                if (vinDetails.extendedWarrantyYears > 0 || vinDetails.extendedWarrantyMiles > 0) {
-                    extendedTimeSection.classList.remove('hidden');
-                    extendedMileageSection.classList.remove('hidden');
-
-                    isEligibleByExtendedDate = yearsSinceInService <= (vinDetails.standardWarrantyYears + vinDetails.extendedWarrantyYears);
-                    isEligibleByExtendedMileage = analysisResult.initialData.odometer <= (vinDetails.standardWarrantyMiles + vinDetails.extendedWarrantyMiles);
-
-                    const totalExtendedYears = vinDetails.standardWarrantyYears + vinDetails.extendedWarrantyYears;
-                    const totalExtendedMiles = vinDetails.standardWarrantyMiles + vinDetails.extendedWarrantyMiles;
-
-                    extendedTimeCoverageText.textContent = `${yearsSinceInService.toFixed(1)} of ${totalExtendedYears.toFixed(1)} Years Used (incl. extended)`;
-                    extendedMileageCoverageText.textContent = `${analysisResult.initialData.odometer.toLocaleString()} of ${totalExtendedMiles.toLocaleString()} Miles Used (incl. extended)`;
-
-                    const extendedTimePercent = Math.min(100, (yearsSinceInService / totalExtendedYears) * 100);
-                    const extendedMileagePercent = Math.min(100, (analysisResult.initialData.odometer / totalExtendedMiles) * 100);
-
-                    extendedTimeBar.style.width = `${extendedTimePercent}%`;
-                    extendedMileageBar.style.width = `${extendedMileagePercent}%`;
-
-                    if (!isEligibleByExtendedDate) { extendedTimeBar.classList.add('expired'); } else { extendedTimeBar.classList.remove('expired'); }
-                    if (!isEligibleByExtendedMileage) { extendedMileageBar.classList.add('expired'); } else { extendedMileageBar.classList.remove('expired'); }
-
-                    isEligibleFinal = isEligibleByStandardDate && isEligibleByStandardMileage || // Eligible by standard OR
-                                      isEligibleByExtendedDate && isEligibleByExtendedMileage;  // Eligible by extended
+                // Update for extended service contract
+                if (vinDetails.hasExtendedServiceContract) {
+                    if (vinDetails.extendedContractPremiumsPaid) {
+                        extendedContractText.innerHTML = `Active ✅ (Premiums Paid)`;
+                        extendedContractBar.style.width = `100%`;
+                        extendedContractBar.classList.add('active-check');
+                        extendedContractBar.classList.remove('expired');
+                    } else {
+                        extendedContractText.innerHTML = `Active ❌ (Premiums Due)`;
+                        extendedContractBar.style.width = `100%`; // Still show full bar but red if not paid
+                        extendedContractBar.classList.add('expired');
+                        extendedContractBar.classList.remove('active-check');
+                    }
                 } else {
-                    extendedTimeSection.classList.add('hidden');
-                    extendedMileageSection.classList.add('hidden');
+                    extendedContractText.innerHTML = `Not Applicable`;
+                    extendedContractBar.style.width = `0%`; // Or a minimal width to show N/A visually
+                    extendedContractBar.classList.remove('active-check', 'expired');
                 }
 
-
-                analysisResult.vinDetails = vinDetails;
-                analysisResult.warrantyEligibility = {
-                    inServiceDate: actualInServiceDate.toLocaleDateString(),
-                    standardWarrantyType: `${vinDetails.standardWarrantyYears} Years / ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles`,
-                    extendedWarrantyType: `${vinDetails.extendedWarrantyYears} Years / ${vinDetails.extendedWarrantyMiles.toLocaleString()} Miles`,
-                    yearsSinceInService: yearsSinceInService.toFixed(1),
-                    isEligibleByStandardDate,
-                    isEligibleByStandardMileage,
-                    isEligibleByExtendedDate,
-                    isEligibleByExtendedMileage,
-                    isEligibleFinal
-                };
-
-                const eligibilityStatusText = document.getElementById('eligibility-status-text');
                 eligibilityStatusText.textContent = `Finding: ${isEligibleFinal ? '✅ Vehicle is ELIGIBLE for warranty coverage.' : '❌ Vehicle is NOT ELIGIBLE for warranty coverage.'}`;
                 eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold ${isEligibleFinal ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-rose-50 border border-rose-200 text-rose-800'}`;
 
@@ -778,7 +759,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                     finalStatusDiv.className = "mt-4 p-4 border border-rose-500 bg-rose-50 rounded-lg text-rose-900";
                     finalStatusDiv.innerHTML = `
                         <p><strong>Status:</strong> <span class="font-bold">NOT ELIGIBLE FOR WARRANTY</span></p>
-                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles).</p>
+                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles). ${analysisResult.warrantyEligibility.hasExtendedServiceContract && !analysisResult.warrantyEligibility.extendedContractPremiumsPaid ? '<br>Extended Service Contract exists but premiums are not paid.' : ''}</p>
                         <p class="mt-2"><strong>Action:</strong> This process would typically transition to a customer-pay repair or a goodwill request, if applicable.</p>
                     `;
                     finalActionsDiv.innerHTML = `
@@ -965,8 +946,10 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
 
                 const timeCoverageText = card.querySelector('#time-coverage-text');
                 const mileageCoverageText = card.querySelector('#mileage-coverage-text');
+                const extendedContractText = card.querySelector('#extended-contract-text'); // New element
                 const timeBar = card.querySelector('#time-bar');
                 const mileageBar = card.querySelector('#mileage-bar');
+                const extendedContractBar = card.querySelector('#extended-contract-bar'); // New element
                 const eligibilityStatusText = card.querySelector('#eligibility-status-text');
 
                 timeCoverageText.textContent = `${eligibility.yearsSinceInService} of ${vinDetails.standardWarrantyYears.toFixed(1)} Years Used`;
@@ -978,40 +961,27 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 timeBar.style.width = `${timePercent}%`;
                 mileageBar.style.width = `${mileagePercent}%`;
 
-                if (!eligibility.isEligibleByStandardDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
-                if (!eligibility.isEligibleByStandardMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
+                if (!eligibility.isEligibleByDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
+                if (!eligibility.isEligibleByMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
 
-                // Update extended warranty bars if present in past data
-                const extendedTimeSection = card.querySelector('#extended-warranty-time-section');
-                const extendedMileageSection = card.querySelector('#extended-warranty-mileage-section');
-                const extendedTimeCoverageText = card.querySelector('#extended-time-coverage-text');
-                const extendedMileageCoverageText = card.querySelector('#extended-mileage-coverage-text');
-                const extendedTimeBar = card.querySelector('#extended-time-bar');
-                const extendedMileageBar = card.querySelector('#extended-mileage-bar');
-
-                if (vinDetails.extendedWarrantyYears > 0 || vinDetails.extendedWarrantyMiles > 0) {
-                    extendedTimeSection.classList.remove('hidden');
-                    extendedMileageSection.classList.remove('hidden');
-
-                    const totalExtendedYears = vinDetails.standardWarrantyYears + vinDetails.extendedWarrantyYears;
-                    const totalExtendedMiles = vinDetails.standardWarrantyMiles + vinDetails.extendedWarrantyMiles;
-
-                    extendedTimeCoverageText.textContent = `${eligibility.yearsSinceInService} of ${totalExtendedYears.toFixed(1)} Years Used (incl. extended)`;
-                    extendedMileageCoverageText.textContent = `${initialData.odometer.toLocaleString()} of ${totalExtendedMiles.toLocaleString()} Miles Used (incl. extended)`;
-
-                    const extendedTimePercent = Math.min(100, (parseFloat(eligibility.yearsSinceInService) / totalExtendedYears) * 100);
-                    const extendedMileagePercent = Math.min(100, (initialData.odometer / totalExtendedMiles) * 100);
-
-                    extendedTimeBar.style.width = `${extendedTimePercent}%`;
-                    extendedMileageBar.style.width = `${extendedMileagePercent}%`;
-
-                    if (!eligibility.isEligibleByExtendedDate) { extendedTimeBar.classList.add('expired'); } else { extendedTimeBar.classList.remove('expired'); }
-                    if (!eligibility.isEligibleByExtendedMileage) { extendedMileageBar.classList.add('expired'); } else { extendedMileageBar.classList.remove('expired'); }
+                // Update for extended service contract
+                if (eligibility.hasExtendedServiceContract) {
+                    if (eligibility.extendedContractPremiumsPaid) {
+                        extendedContractText.innerHTML = `Active ✅ (Premiums Paid)`;
+                        extendedContractBar.style.width = `100%`;
+                        extendedContractBar.classList.add('active-check');
+                        extendedContractBar.classList.remove('expired');
+                    } else {
+                        extendedContractText.innerHTML = `Active ❌ (Premiums Due)`;
+                        extendedContractBar.style.width = `100%`;
+                        extendedContractBar.classList.add('expired');
+                        extendedContractBar.classList.remove('active-check');
+                    }
                 } else {
-                    extendedTimeSection.classList.add('hidden');
-                    extendedMileageSection.classList.add('hidden');
+                    extendedContractText.innerHTML = `Not Applicable`;
+                    extendedContractBar.style.width = `0%`;
+                    extendedContractBar.classList.remove('active-check', 'expired');
                 }
-
 
                 eligibilityStatusText.textContent = `Finding: ${eligibility.isEligibleFinal ? '✅ Vehicle is ELIGIBLE for warranty coverage.' : '❌ Vehicle is NOT ELIGIBLE for warranty coverage.'}`;
                 eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold ${eligibility.isEligibleFinal ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-rose-50 border border-rose-200 text-rose-800'}`;
@@ -1082,8 +1052,8 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 requiredDocsList.innerHTML = analysisResult.requiredDocuments.map(d => `<li>${d}</li>`).join('');
 
             } else if (step.id === 'summary') {
-                const finalStatusDiv = card.getElementById('final-status');
-                const finalActionsDiv = card.getElementById('final-actions');
+                const finalStatusDiv = card.querySelector('#final-status');
+                const finalActionsDiv = card.querySelector('#final-actions');
 
                 if (analysisResult.warrantyEligibility.isEligibleFinal) {
                     finalStatusDiv.className = "mt-4 p-4 border border-teal-500 bg-teal-50 rounded-lg text-teal-900";
@@ -1100,7 +1070,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                     finalStatusDiv.className = "mt-4 p-4 border border-rose-500 bg-rose-50 rounded-lg text-rose-900";
                     finalStatusDiv.innerHTML = `
                         <p><strong>Status:</strong> <span class="font-bold">NOT ELIGIBLE FOR WARRANTY</span></p>
-                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles).</p>
+                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles). ${analysisResult.warrantyEligibility.hasExtendedServiceContract && !analysisResult.warrantyEligibility.extendedContractPremiumsPaid ? '<br>Extended Service Contract exists but premiums are not paid.' : ''}</p>
                         <p class="mt-2"><strong>Action:</strong> This process would typically transition to a customer-pay repair or a goodwill request, if applicable.</p>
                     `;
                     finalActionsDiv.innerHTML = `
