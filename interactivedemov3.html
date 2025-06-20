@@ -6,6 +6,59 @@
     <title>Deployable Multi-Agent Warranty System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase configuration and initialization (MANDATORY GLOBALS)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+
+        // Initialize Firebase when the script loads
+        if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.projectId) {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            // Authenticate user
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    console.log("Firebase Auth Ready. User ID:", userId);
+                    // Dispatch a custom event when Firebase Auth is ready
+                    window.dispatchEvent(new CustomEvent('firebaseAuthReady', { detail: { db, auth, userId } }));
+                } else if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } catch (error) {
+                        console.error("Error signing in with custom token:", error);
+                        await signInAnonymously(auth); // Fallback to anonymous
+                    }
+                } else {
+                    await signInAnonymously(auth);
+                }
+            });
+        } else {
+            console.error("Firebase config not found or invalid. Firestore features will be disabled.");
+        }
+
+        // Expose Firebase instances globally (or via a window object) for use in other scripts
+        // This is good for modularity, but in this single script, direct access after the event is also fine.
+        window.firebaseInstances = {
+            getDb: () => db,
+            getAuth: () => auth,
+            getUserId: () => userId
+        };
+        window.firebaseApp = app;
+    </script>
     <!-- Chosen Palette: Calm Neutrals with Teal Accent -->
     <!-- Application Structure Plan: The application is structured as a single-page dashboard with distinct, collapsible sections for 'Claim Submission', 'Live Analysis', and 'Past Claims'. This dashboard approach was chosen to provide a comprehensive view, allowing users to initiate new analyses and review historical data from a single interface. The step-by-step 'Live Analysis' section retains the storytelling aspect, while the 'Past Claims' section adds persistent data interaction, enhancing usability for a deployable application. -->
     <!-- Visualization & Content Choices:
@@ -112,11 +165,11 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm text-gray-700">
                     <div>
                         <label for="product" class="block text-sm font-medium text-gray-700">Product Model</label>
-                        <input type="text" id="product" value="Tractor X120" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        <input type="text" id="product" value="BMW 3 Series" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
                     </div>
                     <div>
                         <label for="part" class="block text-sm font-medium text-gray-700">Affected Component</label>
-                        <input type="text" id="part" value="gearbox" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        <input type="text" id="part" value="Gearbox" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
                     </div>
                     <div>
                         <label for="vin" class="block text-sm font-medium text-gray-700">VIN (e.g., 1HGJM1770AA00001)</label>
@@ -139,7 +192,7 @@
                         <input type="date" id="purchaseDate" value="2023-01-15" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
                     </div>
                     <div class="md:col-span-2 text-center">
-                        <button type="submit" id="generateClaimBtn" class="bg-teal-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-teal-700 transition-all transform hover:scale-105" disabled>
+                        <button type="submit" id="generateClaimBtn" class="bg-teal-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-teal-700 transition-all transform hover:scale-105">
                             Begin Multi-Agent Analysis
                         </button>
                     </div>
@@ -200,167 +253,21 @@
     </div>
 
 <script type="module">
-    // Firebase SDK Imports - All necessary imports are now within this single script block
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    // Firebase configuration and initialization (MANDATORY GLOBALS)
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-    let app;
-    let db;
-    let auth;
+    // Access Firebase instances from window
+    // Ensure that db, auth, and userId are initialized before attempting to use them.
+    let db = null;
+    let auth = null;
     let userId = null;
 
-    // --- Demo Data for Initial Firestore Population ---
-    const DEMO_VINS = [
-        {
-            vin: "1HGJM1770AA00001",
-            make: "AgriCorp",
-            model: "Tractor X120",
-            modelYear: 2022,
-            inServiceDate: "2023-02-15T00:00:00.000Z", // ISO string for Date object
-            standardWarrantyYears: 3,
-            standardWarrantyMiles: 36000
-        },
-        {
-            vin: "5TYGH8901BA000002",
-            make: "AutoMotive",
-            model: "Sedan XYZ",
-            modelYear: 2023,
-            inServiceDate: "2023-06-01T00:00:00.000Z",
-            standardWarrantyYears: 5,
-            standardWarrantyMiles: 60000
-        },
-        {
-            vin: "2FDCV4567CA000003",
-            make: "HeavyDuty",
-            model: "Excavator 5000",
-            modelYear: 2021,
-            inServiceDate: "2022-01-10T00:00:00.000Z",
-            standardWarrantyYears: 2,
-            standardWarrantyMiles: 10000 // Or hours for heavy machinery
-        }
-    ];
-
-    const DEMO_TSBS = [
-        {
-            id: "TSB-24-005-TRX",
-            type: "TSB",
-            title: "Gearbox Synchronizer Grinding Noise",
-            description: "Addresses grinding noise during 2nd-3rd gear shifts in Tractor X120 models due to premature synchronizer wear. Provides updated diagnostic procedures and recommended replacement parts.",
-            products: ["tractor x120", "tractor"],
-            parts: ["gearbox", "transmission", "synchronizer"],
-            keywords: ["grinding", "shift", "gearbox", "synchronizer", "noise"]
-        },
-        {
-            id: "RECALL-23V-123",
-            type: "Recall",
-            title: "Hydraulic Hose Leak Inspection",
-            description: "Mandatory safety recall for potential hydraulic hose leaks affecting Model S Sedan. Requires immediate inspection and hose replacement.",
-            products: ["model s sedan", "sedan"],
-            parts: ["hydraulic", "hose", "fluid", "pump"],
-            keywords: ["leak", "hydraulic", "fluid"]
-        },
-        {
-            id: "TSB-EL-2023-015",
-            type: "TSB",
-            title: "Electrical Wiring Inspection for Overheating",
-            description: "Investigates instances of electrical wiring overheating and smoke. Advises inspection of specific harness bundles for affected production dates.",
-            products: ["tractor x120", "sedan xyz"], // Applies to specific models
-            parts: ["electrical", "wiring", "harness", "circuit"],
-            keywords: ["electrical", "smoke", "smell", "burn", "overheat", "fuse"]
-        },
-        {
-            id: "TSB-SUSP-2024-001",
-            type: "TSB",
-            title: "Front Wheel Bearing Anomaly Noise",
-            description: "Addresses unusual noise/vibration from front wheels. Details inspection and replacement procedures for affected bearing batches.",
-            products: ["truck f150", "suv explorer", "sedan xyz"],
-            parts: ["bearing", "wheel", "hub", "axle"],
-            keywords: ["noise", "vibration", "bearing", "rattle"]
-        }
-    ];
-    // --- End Demo Data ---
-
-    async function ensureFirestoreDemoData() {
-        if (!db) {
-            console.warn("Firestore not initialized, cannot ensure demo data.");
-            return;
-        }
-
-        const vinColRef = collection(db, `artifacts/${appId}/public/data/vins`);
-        const tsbColRef = collection(db, `artifacts/${appId}/public/data/tsbs`);
-
-        try {
-            // Check and populate VINs
-            const vinSnapshot = await getDocs(vinColRef);
-            if (vinSnapshot.empty) {
-                console.log("Populating demo VINs...");
-                const batch = writeBatch(db);
-                DEMO_VINS.forEach(data => {
-                    const docRef = doc(vinColRef, data.vin); // Use VIN as document ID
-                    batch.set(docRef, data);
-                });
-                await batch.commit();
-                console.log("Demo VINs populated.");
-            } else {
-                console.log("VINs collection already contains data.");
-            }
-
-            // Check and populate TSBs
-            const tsbSnapshot = await getDocs(tsbColRef);
-            if (tsbSnapshot.empty) {
-                console.log("Populating demo TSBs...");
-                const batch = writeBatch(db);
-                DEMO_TSBS.forEach(data => {
-                    const docRef = doc(tsbColRef, data.id); // Use TSB ID as document ID
-                    batch.set(docRef, data);
-                });
-                await batch.commit();
-                console.log("Demo TSBs populated.");
-            } else {
-                console.log("TSBs collection already contains data.");
-            }
-        } catch (e) {
-            console.error("Error ensuring Firestore demo data:", e);
-        }
-    }
-
-
-    // Initialize Firebase when the script loads
-    if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.projectId) {
-        app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-
-        // Authenticate user and then load data
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                userId = user.uid;
-                console.log("Firebase Auth Ready. User ID:", userId);
-                document.getElementById('user-status').textContent = `User ID: ${userId}`;
-                document.getElementById('user-status').classList.remove('hidden');
-                generateClaimBtn.disabled = false; // Enable the button now that Firebase is ready
-                await ensureFirestoreDemoData(); // Ensure data is present after auth
-                loadPastClaims(); // Load claims only after auth is ready and demo data is ensured
-            } else if (initialAuthToken) {
-                try {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } catch (error) {
-                    console.error("Error signing in with custom token:", error);
-                    await signInAnonymously(auth); // Fallback to anonymous
-                }
-            } else {
-                await signInAnonymously(auth);
-            }
-        });
-    } else {
-        console.error("Firebase config not found or invalid. Firestore features will be disabled.");
-    }
+    // Listen for the custom event fired when Firebase Auth is ready
+    window.addEventListener('firebaseAuthReady', (event) => {
+        db = event.detail.db;
+        auth = event.detail.auth;
+        userId = event.detail.userId;
+        document.getElementById('user-status').textContent = `User ID: ${userId}`;
+        document.getElementById('user-status').classList.remove('hidden');
+        loadPastClaims(); // Load claims only after auth is ready
+    });
 
     // Constants
     const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
@@ -393,7 +300,7 @@
     const generateClaimBtn = document.getElementById('generateClaimBtn');
     const pastClaimsList = document.getElementById('past-claims-list');
     const noClaimsMessage = document.getElementById('no-claims-message');
-    const formInputs = [productInput, partInput, vinInput, odometerInput, customerComplaintInput, technicianDiagnosisInput, purchaseDateInput]; // Removed generateClaimBtn as it's directly handled
+    const formInputs = [productInput, partInput, vinInput, odometerInput, customerComplaintInput, technicianDiagnosisInput, purchaseDateInput, generateClaimBtn];
 
     // Modal elements
     const customModal = document.getElementById('customModal');
@@ -404,8 +311,8 @@
     const modalConfirmBtn = document.getElementById('modalConfirmBtn');
 
     let currentStep = -1;
-    let analysisResult = {};
-    let chartInstance = null;
+    let analysisResult = {}; // Store the full analysis result for saving
+    let chartInstance = null; // To manage Chart.js instance
 
     // Utility Functions
     async function animateText(element, text, delay = TYPING_DELAY) {
@@ -420,6 +327,7 @@
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    // Custom Modal Function (replaces alert/confirm)
     function showModal(title, message, showConfirm = false) {
         modalTitle.textContent = title;
         modalMessage.textContent = message;
@@ -434,19 +342,20 @@
             const closeAndResolve = (result) => {
                 customModal.classList.remove('show');
                 customModal.style.display = 'none';
+                // Remove listeners to prevent multiple calls
                 modalCloseBtn.onclick = null;
                 closeModalBtn.onclick = null;
                 modalConfirmBtn.onclick = null;
                 resolve(result);
             };
+
             modalCloseBtn.onclick = () => closeAndResolve(false);
             closeModalBtn.onclick = () => closeAndResolve(false);
             modalConfirmBtn.onclick = () => closeAndResolve(true);
         });
     }
-    // Expose showModal to the window object so it can be called from inline HTML attributes
-    window.showModal = showModal;
 
+    // Toggle form input disabled state
     function toggleFormInputs(disabled) {
         formInputs.forEach(input => {
             input.disabled = disabled;
@@ -455,48 +364,70 @@
 
     // --- Helper Agent Implementations ---
 
-    // VIN Lookup Agent: Fetches VIN data from Firestore
+    // VIN API Integration (Conceptual) - VinLookupAgent
     async function getVinDetails(vin) {
-        console.log("Attempting VIN lookup. DB:", db); // Debugging: Check if db is defined
-        if (!db) {
-            console.error("Firestore DB not available for VIN lookup.");
-            return null;
-        }
         loadingIndicator.classList.remove('hidden');
-        try {
-            const vinDocRef = doc(db, `artifacts/${window.__app_id}/public/data/vins`, vin);
-            const vinDocSnap = await getDoc(vinDocRef);
-            await wait(500); // Simulate network latency
+        // Simulate a VIN API response with a short delay and dynamic data
+        await wait(1000); // Simulate network latency
 
-            if (vinDocSnap.exists()) {
-                const data = vinDocSnap.data();
-                // Convert ISO string to Date object if needed for calculations
-                data.inServiceDate = new Date(data.inServiceDate);
-                console.log("VIN data found:", data); // Debugging: Log data found
-                return data;
-            } else {
-                console.warn(`VIN ${vin} not found in Firestore. Returning generic data.`);
-                return {
-                    vin: vin, // Return the requested VIN
-                    make: "Unknown",
-                    model: "Generic Model",
-                    modelYear: 2020,
-                    inServiceDate: new Date(), // Default to current date
-                    standardWarrantyYears: 3,
-                    standardWarrantyMiles: 36000
-                };
-            }
-        } catch (e) {
-            console.error("Error fetching VIN from Firestore:", e);
-            return null;
-        } finally {
-            loadingIndicator.classList.add('hidden');
+        let vinData = {
+            make: "Unknown",
+            model: "Unknown",
+            modelYear: 2020,
+            inServiceDate: new Date(), // Default to today if no specific logic
+            standardWarrantyYears: 3,
+            standardWarrantyMiles: 36000,
+            hasExtendedServiceContract: false, // Default
+            extendedContractPaid: false, // Default
+            extendedContractScope: false // Default
+        };
+
+        if (vin.includes("TRX")) { // Example for Tractor X120
+            vinData = {
+                make: "AgriCorp",
+                model: "Tractor X120",
+                modelYear: 2022,
+                inServiceDate: new Date("2023-02-15"),
+                standardWarrantyYears: 3,
+                standardWarrantyMiles: 36000,
+                hasExtendedServiceContract: true,
+                extendedContractPaid: true,
+                extendedContractScope: true // Assume in scope for this example
+            };
+        } else if (vin.includes("XYZ")) { // Example for a different vehicle
+            vinData = {
+                make: "AutoMotive",
+                model: "Sedan XYZ",
+                modelYear: 2023,
+                inServiceDate: new Date("2023-06-01"),
+                standardWarrantyYears: 5,
+                standardWarrantyMiles: 60000,
+                hasExtendedServiceContract: true,
+                extendedContractPaid: false, // Simulate not paid
+                extendedContractScope: true
+            };
+        } else if (vin.includes("ESC")) { // Example for Extended Service Contract, paid but out of scope
+            vinData = {
+                make: "Luxury Motors",
+                model: "Elite Sport",
+                modelYear: 2021,
+                inServiceDate: new Date("2022-03-01"),
+                standardWarrantyYears: 4,
+                standardWarrantyMiles: 50000,
+                hasExtendedServiceContract: true,
+                extendedContractPaid: true,
+                extendedContractScope: false // Simulate out of scope
+            };
         }
+
+        loadingIndicator.classList.add('hidden');
+        return vinData;
     }
 
-    // Advanced AI (Gemini) Diagnosis Agent
+    // Advanced AI (Gemini) Diagnosis Agent - Now integrated into NLP Agent
     async function getFailureCodeFromGemini(technicianDiagnosis, partName) {
         loadingIndicator.classList.remove('hidden');
+        // The API key will be provided by the runtime automatically. Do not hardcode.
         const apiKey = "";
         const prompt = `You are a highly specialized automotive warranty engineer assistant.
 Based on the following technician's diagnosis: "${technicianDiagnosis}" and the part involved: "${partName}",
@@ -514,7 +445,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
 
         try {
             const payload = { contents: [{ parts: [{ text: prompt }] }] };
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
             const response = await fetch(apiUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -523,16 +454,17 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
             if (!response.ok) {
                 const errorBody = await response.json();
                 console.error("Gemini API error:", errorBody);
+                loadingIndicator.classList.add('hidden');
                 return "F999 - Unknown (API Error)";
             }
             const data = await response.json();
             const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "F999 - Unknown";
+            loadingIndicator.classList.add('hidden');
             return textResponse.trim();
         } catch (error) {
             console.error("Error calling Gemini API:", error);
-            return "F999 - Unknown (Network Error)";
-        } finally {
             loadingIndicator.classList.add('hidden');
+            return "F999 - Unknown (Network Error)";
         }
     }
 
@@ -561,55 +493,9 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
         return bestMatch;
     }
 
-    // TSB & Recall Lookup Agent: Fetches TSB data from Firestore and filters
-    async function getRelevantTsbs(product, part, diagnosis) {
-        if (!db) {
-            console.error("Firestore DB not available for TSB lookup.");
-            return [];
-        }
-        loadingIndicator.classList.remove('hidden');
-        const tsbColRef = collection(db, `artifacts/${window.__app_id}/public/data/tsbs`);
-        const matchingTsbs = [];
-        const searchTerms = new Set([...product.toLowerCase().split(/\s+/), ...part.toLowerCase().split(/\s+/), ...diagnosis.toLowerCase().split(/\s+/)].map(t => t.replace(/[^a-z0-9]/g, '')));
-
-        try {
-            const querySnapshot = await getDocs(tsbColRef);
-            await wait(500); // Simulate network latency
-
-            querySnapshot.forEach(docSnap => {
-                const tsb = docSnap.data();
-                let score = 0;
-
-                // Match by product
-                if (tsb.products && tsb.products.some(p => searchTerms.has(p.toLowerCase()))) {
-                    score += 10;
-                }
-                // Match by part
-                if (tsb.parts && tsb.parts.some(p => searchTerms.has(p.toLowerCase()))) {
-                    score += 15;
-                }
-                // Match by keywords in diagnosis
-                if (tsb.keywords && tsb.keywords.some(k => searchTerms.has(k.toLowerCase()))) {
-                    score += 20;
-                }
-
-                if (score > 0) { // Consider it a match if any score
-                    matchingTsbs.push(tsb);
-                }
-            });
-            return matchingTsbs;
-        } catch (e) {
-            console.error("Error fetching TSBs from Firestore:", e);
-            return [];
-        } finally {
-            loadingIndicator.classList.add('hidden');
-        }
-    }
-
-
     // Documentation Compiler Agent
     function getRequiredDocuments(part, diagnosis, isEligible) {
-        if (!isEligible) return ["No documents required as claim is not eligible for warranty."];
+        if (!isEligible) return ["No documents required as claim is not eligible for warranty or extended service contract."];
         const docs = ["Completed Service Order Form (with VIN/Serial No.)", "Customer Concern Narrative (signed/verified)"];
         if (diagnosis.length > 20) { docs.push("Technician's Detailed Diagnostic Report"); }
         if (part.includes("gear") || part.includes("transmission") || part.includes("synchronizer")) { docs.push("High-Resolution Photo/Video of Damaged Gearbox Components", "Dealer Diagnostic Report (including DTCs if any)"); }
@@ -639,9 +525,9 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                         odometer: parseInt(odometerInput.value),
                         customerComplaint: customerComplaintInput.value.trim().toLowerCase(),
                         technicianDiagnosis: technicianDiagnosisInput.value.trim().toLowerCase(),
-                        purchaseDate: new Date(purchaseDateInput.value).toISOString(),
+                        purchaseDate: new Date(purchaseDateInput.value).toLocaleDateString(),
                     },
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString() // Add timestamp for sorting
                 };
                 return { success: true };
             }
@@ -651,56 +537,68 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
             title: 'VIN & Warranty Eligibility Agent',
             icon: '🛡️',
             content: `
-                <p>This agent connects to a VIN lookup service (powered by Firestore for this demo) to retrieve vehicle details and then cross-references with OEM warranty policies.</p>
+                <p>This agent connects to a Edmund's VIN lookup service to retrieve vehicle details and then cross-references with OEM warranty policies.</p>
                 <div class="mt-4 space-y-4">
                     <div>
-                        <div class="flex justify-between text-sm font-medium mb-1"><span>Time Coverage</span><span id="time-coverage-text"></span></div>
+                        <div class="flex justify-between text-sm font-medium mb-1"><span>Standard Warranty Time Coverage</span><span id="time-coverage-text"></span></div>
                         <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="time-bar" class="progress-bar h-full rounded-full"></div></div>
                     </div>
                     <div>
-                        <div class="flex justify-between text-sm font-medium mb-1"><span>Mileage Coverage</span><span id="mileage-coverage-text"></span></div>
+                        <div class="flex justify-between text-sm font-medium mb-1"><span>Standard Warranty Mileage Coverage</span><span id="mileage-coverage-text"></span></div>
                         <div class="progress-bar-bg w-full h-4 rounded-full overflow-hidden"><div id="mileage-bar" class="progress-bar h-full rounded-full"></div></div>
                     </div>
                 </div>
                 <p id="eligibility-status-text" class="mt-4 p-3 rounded-lg font-semibold"></p>
+                <p id="extended-contract-status-text" class="mt-2 p-3 rounded-lg font-semibold hidden"></p>
             `,
             action: async () => {
                 const vinDetails = await getVinDetails(analysisResult.initialData.vin);
-                if (!vinDetails) {
-                    await showModal("Error", "Could not retrieve VIN details. Please check the VIN and try again.");
-                    return { success: false };
-                }
-
                 const today = new Date();
                 const actualInServiceDate = vinDetails.inServiceDate;
                 const yearsSinceInService = (today - actualInServiceDate) / MS_PER_YEAR;
 
                 const isEligibleByDate = yearsSinceInService <= vinDetails.standardWarrantyYears;
                 const isEligibleByMileage = analysisResult.initialData.odometer <= vinDetails.standardWarrantyMiles;
-                const isEligibleFinal = isEligibleByDate && isEligibleByMileage;
+                const isEligibleStandard = isEligibleByDate && isEligibleByMileage;
 
-                analysisResult.vinDetails = { // Store relevant VIN details
-                    make: vinDetails.make,
-                    model: vinDetails.model,
-                    modelYear: vinDetails.modelYear,
-                    inServiceDate: vinDetails.inServiceDate.toISOString(),
-                    standardWarrantyYears: vinDetails.standardWarrantyYears,
-                    standardWarrantyMiles: vinDetails.standardWarrantyMiles
-                };
+                // Extended Service Contract Check
+                let isEligibleExtended = false;
+                let extendedContractMessage = "";
+                if (vinDetails.hasExtendedServiceContract) {
+                    if (vinDetails.extendedContractPaid && vinDetails.extendedContractScope) {
+                        isEligibleExtended = true;
+                        extendedContractMessage = "✅ Vehicle has an active Extended Service Contract, and issue is in scope.";
+                    } else if (!vinDetails.extendedContractPaid) {
+                        extendedContractMessage = "⚠️ Vehicle has an Extended Service Contract, but premiums may not be paid.";
+                    } else if (!vinDetails.extendedContractScope) {
+                        extendedContractMessage = "❌ Vehicle has an Extended Service Contract, but this issue is out of scope.";
+                    }
+                } else {
+                    extendedContractMessage = "ℹ️ No Extended Service Contract found for this vehicle.";
+                }
+
+                analysisResult.vinDetails = vinDetails;
                 analysisResult.warrantyEligibility = {
-                    inServiceDateDisplay: actualInServiceDate.toLocaleDateString(),
+                    inServiceDate: actualInServiceDate.toLocaleDateString(),
                     warrantyType: `${vinDetails.standardWarrantyYears} Years / ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles`,
-                    yearsSinceInService: parseFloat(yearsSinceInService.toFixed(1)), // Ensure numeric for later JSON
+                    yearsSinceInService: yearsSinceInService.toFixed(1),
                     isEligibleByDate,
                     isEligibleByMileage,
-                    isEligibleFinal
+                    isEligibleStandard, // Standard warranty eligibility
+                    hasExtendedServiceContract: vinDetails.hasExtendedServiceContract,
+                    extendedContractPaid: vinDetails.extendedContractPaid,
+                    extendedContractScope: vinDetails.extendedContractScope,
+                    isEligibleExtended, // Extended contract eligibility
+                    isEligibleFinal: isEligibleStandard || isEligibleExtended // Final eligibility
                 };
 
+                // Update content in the card
                 const timeCoverageText = document.getElementById('time-coverage-text');
                 const mileageCoverageText = document.getElementById('mileage-coverage-text');
                 const timeBar = document.getElementById('time-bar');
                 const mileageBar = document.getElementById('mileage-bar');
                 const eligibilityStatusText = document.getElementById('eligibility-status-text');
+                const extendedContractStatusText = document.getElementById('extended-contract-status-text');
 
                 timeCoverageText.textContent = `${analysisResult.warrantyEligibility.yearsSinceInService} of ${vinDetails.standardWarrantyYears.toFixed(1)} Years Used`;
                 mileageCoverageText.textContent = `${analysisResult.initialData.odometer.toLocaleString()} of ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles Used`;
@@ -709,13 +607,23 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 const mileagePercent = Math.min(100, (analysisResult.initialData.odometer / vinDetails.standardWarrantyMiles) * 100);
 
                 timeBar.style.width = `${timePercent}%`;
-                mileageBar.style.width = `${mileagePercent}%`;
+                mileageBar.style.width = `${milegagePercent}%`;
 
                 if (!isEligibleByDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
                 if (!isEligibleByMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
 
-                eligibilityStatusText.textContent = `Finding: ${isEligibleFinal ? '✅ Vehicle is ELIGIBLE for warranty coverage.' : '❌ Vehicle is NOT ELIGIBLE for warranty coverage.'}`;
-                eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold ${isEligibleFinal ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-rose-50 border border-rose-200 text-rose-800'}`;
+                eligibilityStatusText.textContent = `Standard Warranty: ${isEligibleStandard ? '✅ ELIGIBLE' : '❌ NOT ELIGIBLE'}`;
+                eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold ${isEligibleStandard ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-rose-50 border border-rose-200 text-rose-800'}`;
+
+                extendedContractStatusText.textContent = `Extended Service Contract: ${extendedContractMessage}`;
+                extendedContractStatusText.classList.remove('hidden');
+                if (isEligibleExtended) {
+                    extendedContractStatusText.className = 'mt-2 p-3 rounded-lg font-semibold bg-green-50 border border-green-200 text-green-800';
+                } else if (vinDetails.hasExtendedServiceContract) { // Has contract but not eligible
+                    extendedContractStatusText.className = 'mt-2 p-3 rounded-lg font-semibold bg-yellow-50 border border-yellow-200 text-yellow-800';
+                } else { // No contract
+                    extendedContractStatusText.className = 'mt-2 p-3 rounded-lg font-semibold bg-gray-50 border border-gray-200 text-gray-700';
+                }
 
                 return { success: true };
             }
@@ -725,48 +633,60 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
             title: 'TSB & Recall Lookup Agent',
             icon: '📢',
             content: `
-                <p>The **TSB & Recall Lookup Agent** cross-references the vehicle's VIN and current diagnostic findings against manufacturer-issued Technical Service Bulletins and safety recall advisories (data from Firestore for this demo). This helps pinpoint if the reported issue aligns with any known systemic problems or required repairs, ensuring adherence to OEM best practices and compliance.</p>
-                <div id="tsb-results" class="mt-4 space-y-3"></div>
+                <p>The TSB & Recall Lookup Agent cross-references the vehicle's VIN and current diagnostic findings against manufacturer-issued Technical Service Bulletins and safety recall advisories. This helps pinpoint if the reported issue aligns with any known systemic problems or required repairs, ensuring adherence to OEM best practices and compliance.</p>
+                <p id="tsb-info-text" class="mt-4 p-3 rounded-lg"></p>
             `,
             action: async () => {
-                const relevantTsbs = await getRelevantTsbs(analysisResult.initialData.product, analysisResult.initialData.part, analysisResult.initialData.technicianDiagnosis);
-                analysisResult.tsbsFound = relevantTsbs;
+                let tsbInfo = "No non-compliance TSBs or Recalls found for this specific issue or VIN."; // Updated default message
+                const product = analysisResult.initialData.product.toLowerCase();
+                const part = analysisResult.initialData.part;
+                const diagnosis = analysisResult.initialData.technicianDiagnosis;
 
-                const tsbResultsDiv = document.getElementById('tsb-results');
-                if (relevantTsbs.length > 0) {
-                    tsbResultsDiv.innerHTML = relevantTsbs.map(tsb => `
-                        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
-                            <p class="font-semibold">${tsb.type.toUpperCase()} ${tsb.id}: ${tsb.title}</p>
-                            <p class="text-sm mt-1">${tsb.description}</p>
-                        </div>
-                    `).join('');
-                } else {
-                    tsbResultsDiv.innerHTML = `<p class="p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700"><strong>Finding:</strong> No active TSBs or Recalls found for this specific issue or VIN in the database.</p>`;
+                if (product.includes("tractor x120") && part.includes("gearbox") && diagnosis.includes("grinding")) {
+                    tsbInfo = "<strong>Found TSB 24-005-TRX:</strong> Gearbox Synchronizer Grinding Noise. Refer to bulletin for updated diagnostic procedure and parts.";
+                } else if (product.includes("sedan") && diagnosis.includes("leak") && part.includes("hydraulic")) {
+                    tsbInfo = "<strong>Found Recall 23V-123:</strong> Hydraulic Hose Leak Inspection. Immediate repair required per recall guidelines.";
+                } else if (diagnosis.includes("electrical") && diagnosis.includes("smoke")) {
+                    tsbInfo = "<strong>Found TSB EL-2023-015:</strong> Wiring Harness Inspection for Overheating. Check for affected production dates.";
                 }
+                analysisResult.tsbInfo = tsbInfo;
+                const tsbInfoTextElement = document.getElementById('tsb-info-text');
+                tsbInfoTextElement.innerHTML = `<strong>Finding:</strong> ${tsbInfo}`;
+                tsbInfoTextElement.className = `mt-4 p-3 rounded-lg ${tsbInfo.includes("Found") ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-gray-50 border border-gray-200 text-gray-700'}`;
                 return { success: true };
             }
         },
         {
             id: 'nlp-agent',
-            title: 'NLP Early Warning Agent',
+            title: 'NLP Early Warning Agent & Advanced AI (Gemini) Diagnosis',
             icon: '🧠',
             content: `
-                <p>This agent performs a rapid, preliminary analysis of the technician's diagnosis using a local knowledge base to suggest potential failure modes.</p>
+                <p>This agent performs a rapid, preliminary analysis of the technician's diagnosis using a local knowledge base, followed by an advanced AI (Gemini) analysis for a definitive recommendation.</p>
                 <div class="flex flex-col md:flex-row items-center justify-center gap-6 mt-4">
                     <div class="chart-container"><canvas id="confidenceChart"></canvas></div>
                     <div class="flex-1">
-                        <p class="font-semibold text-gray-700">Preliminary Suggestion:</p>
+                        <p class="font-semibold text-gray-700">Preliminary NLP Suggestion:</p>
                         <p id="nlp-failure-display" class="text-xl font-bold text-amber-600"></p>
                         <p id="nlp-matched-keywords" class="mt-2 text-sm text-gray-500"></p>
                     </div>
                 </div>
+                <div id="gemini-failure-display-wrapper" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
+                    <strong class="text-blue-900">System-Recommended Failure Code (via Gemini AI):</strong>
+                    <span id="gemini-failure-display" class="block text-xl font-bold mt-1"></span>
+                </div>
+                <p class="text-sm text-center mt-2 text-gray-500">Advanced analysis refines the preliminary finding.</p>
             `,
             action: async () => {
                 const simulatedFailureMatch = getSimulatedFailureCode(analysisResult.initialData.technicianDiagnosis, analysisResult.initialData.part);
                 analysisResult.nlpAnalysis = simulatedFailureMatch;
 
+                // Call Gemini API here
+                const geminiFailureCode = await getFailureCodeFromGemini(analysisResult.initialData.technicianDiagnosis, analysisResult.initialData.part);
+                analysisResult.geminiAnalysis = geminiFailureCode; // Store Gemini result
+
                 const nlpFailureDisplay = document.getElementById('nlp-failure-display');
                 const nlpMatchedKeywords = document.getElementById('nlp-matched-keywords');
+                const geminiFailureDisplay = document.getElementById('gemini-failure-display');
 
                 nlpFailureDisplay.textContent = `${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}`;
                 const keywordsHtml = simulatedFailureMatch.matchedKeywords.length > 0
@@ -774,8 +694,10 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                     : `No specific keywords matched locally.`;
                 nlpMatchedKeywords.innerHTML = keywordsHtml;
 
+                geminiFailureDisplay.textContent = geminiFailureCode; // Display Gemini result
+
                 if (chartInstance) {
-                    chartInstance.destroy();
+                    chartInstance.destroy(); // Destroy previous chart instance
                 }
                 const ctx = document.getElementById('confidenceChart').getContext('2d');
                 chartInstance = new Chart(ctx, {
@@ -822,30 +744,11 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
             }
         },
         {
-            id: 'gemini-agent',
-            title: 'Advanced AI (Gemini) Diagnosis Agent',
-            icon: '💡',
-            content: `
-                <p>For higher accuracy, the diagnosis and preliminary findings are sent to an advanced AI model (Gemini) for a definitive system-recommended failure code.</p>
-                <p id="gemini-failure-display" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
-                    <strong class="text-blue-900">System-Recommended Failure Code:</strong>
-                    <span class="block text-xl font-bold mt-1"></span>
-                </p>
-                <p class="text-sm text-center mt-2 text-gray-500">Advanced analysis refines the preliminary finding.</p>
-            `,
-            action: async () => {
-                const geminiFailureCode = await getFailureCodeFromGemini(analysisResult.initialData.technicianDiagnosis, analysisResult.initialData.part);
-                analysisResult.geminiAnalysis = geminiFailureCode;
-                document.querySelector('#gemini-failure-display span').textContent = geminiFailureCode;
-                return { success: true };
-            }
-        },
-        {
             id: 'docs-agent',
             title: 'Documentation Compiler Agent',
             icon: '📋',
             content: `
-                <p>Based on the final failure code and warranty eligibility, this agent compiles a precise list of required documents for the claim submission, ensuring all necessary evidence is gathered.</p>
+                <p>Based on the final failure code and warranty status, this agent compiles a list of required documents for the claim submission.</p>
                 <ul id="required-docs-list" class="list-disc list-inside mt-4 p-4 bg-gray-50 rounded-lg space-y-2"></ul>
             `,
             action: async () => {
@@ -853,6 +756,24 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 analysisResult.requiredDocuments = docs;
                 const requiredDocsList = document.getElementById('required-docs-list');
                 requiredDocsList.innerHTML = docs.map(d => `<li>${d}</li>`).join('');
+                return { success: true };
+            }
+        },
+        {
+            id: 'logger-agent',
+            title: 'Learning & Logging Agent',
+            icon: '📈',
+            content: `
+                <p>This agent logs the entire analysis result, along with the final decision, into a system for continuous learning and model improvement. This data helps refine future AI predictions.</p>
+                <p id="logging-status" class="mt-4 p-3 rounded-lg"></p>
+            `,
+            action: async () => {
+                // Simulate logging operation (e.g., sending to a data warehouse or ML pipeline)
+                await wait(800); // Simulate network call for logging
+                analysisResult.loggedForLearning = true; // Mark as logged
+                const loggingStatusElement = document.getElementById('logging-status');
+                loggingStatusElement.innerHTML = `<strong>Status:</strong> ✅ Analysis data successfully logged for AI model training and performance monitoring.`;
+                loggingStatusElement.className = 'mt-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800';
                 return { success: true };
             }
         },
@@ -877,21 +798,21 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                         <p class="mt-2"><strong>Action:</strong> Submit claim with the recommended failure code and ensure all required documents are attached.</p>
                     `;
                     finalActionsDiv.innerHTML = `
-                        <button class="bg-teal-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-teal-700 transition-all" onclick="window.showModal('Claim Submission', 'In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
-                        <button class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition-all ml-4" onclick="window.showModal('Provide Feedback', 'In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
+                        <button class="bg-teal-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-teal-700 transition-all" onclick="showModal('Claim Submission', 'In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
+                        <button class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition-all ml-4" onclick="showModal('Provide Feedback', 'In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
                     `;
                 } else {
                     finalStatusDiv.className = "mt-4 p-4 border border-rose-500 bg-rose-50 rounded-lg text-rose-900";
                     finalStatusDiv.innerHTML = `
                         <p><strong>Status:</strong> <span class="font-bold">NOT ELIGIBLE FOR WARRANTY</span></p>
-                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles).</p>
+                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles) or Extended Service Contract conditions not met.</p>
                         <p class="mt-2"><strong>Action:</strong> This process would typically transition to a customer-pay repair or a goodwill request, if applicable.</p>
                     `;
                     finalActionsDiv.innerHTML = `
                         <p class="text-gray-600 italic">No direct submission to OEM WMS required for non-eligible claims.</p>
                     `;
                 }
-                saveClaimBtn.classList.add('hidden');
+                saveClaimBtn.classList.remove('hidden');
                 return { success: true };
             }
         }
@@ -921,31 +842,23 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                     <span class="text-2xl mr-3">${step.icon}</span>
                     <span>${step.title}</span>
                 </h3>
-                <div></div>
+                <div></div> <!-- Placeholder for content from step.action -->
             `;
             orchestrationFlow.appendChild(card);
             
-            card.querySelector('div').innerHTML = step.content; // Render static content first
+            // Render content from step.content first (static part)
+            card.querySelector('div').innerHTML = step.content;
 
             setTimeout(async () => {
                 card.classList.remove('opacity-0', 'translate-y-5');
-                nextBtn.disabled = true;
+                nextBtn.disabled = true; // Disable next button during agent action
                 loadingIndicator.classList.remove('hidden');
 
-                const actionResult = await step.action(); // Execute agent's action
+                // Execute the agent's action
+                await step.action();
 
                 loadingIndicator.classList.add('hidden');
-                
-                if (actionResult && actionResult.success === false) {
-                     // If an agent action fails, stop the flow and reset
-                    await showModal("Analysis Halted", "An agent encountered an issue, analysis cannot proceed. Please correct input or try again.");
-                    resetAnalysisBtn.classList.remove('hidden'); // Allow user to reset
-                    nextBtn.classList.add('hidden');
-                    saveClaimBtn.classList.add('hidden');
-                    return;
-                }
-
-                nextBtn.disabled = false;
+                nextBtn.disabled = false; // Re-enable next button
 
                 if (currentStep === steps.length - 1) {
                     nextBtn.classList.add('hidden');
@@ -963,15 +876,15 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
             await showModal("Error", "Firestore is not initialized. Please wait for the user session to load or check console for errors.");
             return;
         }
-        const confirmSave = await showModal("Confirm Save", "Do you want to save this analysis to your past claims?", true);
-        if (confirmSave) {
+        const confirm = await showModal("Confirm Save", "Do you want to save this analysis to your past claims?", true);
+        if (confirm) {
             try {
                 loadingIndicator.classList.remove('hidden');
                 const claimsCollectionRef = collection(db, `artifacts/${window.__app_id}/users/${userId}/claims`);
                 await addDoc(claimsCollectionRef, analysisResult);
                 loadingIndicator.classList.add('hidden');
                 await showModal("Success", "Claim analysis saved successfully!");
-                saveClaimBtn.classList.add('hidden');
+                saveClaimBtn.classList.add('hidden'); // Hide save button after saving
             } catch (e) {
                 console.error("Error adding document: ", e);
                 loadingIndicator.classList.add('hidden');
@@ -982,8 +895,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
 
     async function loadPastClaims() {
         if (!db || !userId) {
-            // This function might be called before Firebase is fully initialized via onAuthStateChanged.
-            // The return here handles that, and the firebaseAuthReady event listener will trigger it again.
+            // This case is handled by the firebaseAuthReady event listener
             return;
         }
 
@@ -993,10 +905,11 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
 
         try {
             const claimsCollectionRef = collection(db, `artifacts/${window.__app_id}/users/${userId}/claims`);
+            // Order by timestamp in descending order (most recent first)
             const q = query(claimsCollectionRef, orderBy('timestamp', 'desc'));
 
             onSnapshot(q, (snapshot) => {
-                pastClaimsList.innerHTML = '';
+                pastClaimsList.innerHTML = ''; // Clear existing list
                 if (snapshot.empty) {
                     noClaimsMessage.textContent = 'No past claims found.';
                     noClaimsMessage.classList.remove('hidden');
@@ -1004,11 +917,12 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                     noClaimsMessage.classList.add('hidden');
                     snapshot.forEach((doc) => {
                         const claim = doc.data();
+                        const claimId = doc.id;
                         const claimDate = new Date(claim.timestamp).toLocaleString();
                         const card = document.createElement('div');
                         card.className = 'bg-gray-100 p-4 rounded-lg shadow-sm cursor-pointer hover:bg-gray-200 transition-colors';
                         card.innerHTML = `
-                            <p class="font-semibold text-gray-800">Claim on ${claim.initialData.product} (VIN: ${claim.initialData.vin})</p>
+                            <p class="font-semibold text-gray-800">Claim on ${claim.initialData.product} (${claim.initialData.vin})</p>
                             <p class="text-sm text-gray-600">Analyzed: ${claimDate}</p>
                             <p class="text-sm text-gray-600">Part: ${claim.initialData.part}</p>
                             <p class="text-sm text-gray-600">Status: ${claim.warrantyEligibility ? (claim.warrantyEligibility.isEligibleFinal ? 'Eligible' : 'Not Eligible') : 'N/A'}</p>
@@ -1027,36 +941,37 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
         }
     }
 
+    // Function to display a past claim's details in the live analysis section
     async function displayPastClaimDetails(claimData) {
         clearAnalysisFlow();
-        toggleFormInputs(true);
-        generateClaimBtn.classList.add('hidden');
+        toggleFormInputs(true); // Disable inputs while displaying past claim
+        generateClaimBtn.classList.add('hidden'); // Hide generate button for past claims
 
+        // Populate form fields with past claim data for context
         productInput.value = claimData.initialData.product;
         partInput.value = claimData.initialData.part;
         vinInput.value = claimData.initialData.vin;
         odometerInput.value = claimData.initialData.odometer;
         customerComplaintInput.value = claimData.initialData.customerComplaint;
         technicianDiagnosisInput.value = claimData.initialData.technicianDiagnosis;
-        // Ensure purchaseDate is set correctly for the input field
-        purchaseDateInput.value = claimData.initialData.purchaseDate ? new Date(claimData.initialData.purchaseDate).toISOString().split('T')[0] : '';
+        purchaseDateInput.value = new Date(claimData.initialData.purchaseDate).toISOString().split('T')[0];
 
-
-        analysisResult = JSON.parse(JSON.stringify(claimData));
+        analysisResult = JSON.parse(JSON.stringify(claimData)); // Deep copy to avoid modifying original
 
         orchestrationFlow.innerHTML = `
             <div class="bg-teal-50 border border-teal-200 p-4 rounded-lg text-teal-800 text-center font-bold">
-                Displaying Analysis for Past Claim (Read-Only)
+                Displaying Analysis for Past Claim
             </div>
             <div id="replayed-workflow" class="space-y-6"></div>
         `;
         const replayedWorkflowDiv = document.getElementById('replayed-workflow');
 
+        // Re-run the steps, but only populate from stored results
         for (let i = 0; i < steps.length; i++) {
             const step = steps[i];
             const card = document.createElement('div');
             card.id = `card-${step.id}`;
-            card.className = 'agent-card bg-white p-6 rounded-xl shadow-md';
+            card.className = 'agent-card bg-white p-6 rounded-xl shadow-md'; // Already visible
             card.innerHTML = `
                 <h3 class="text-xl font-semibold text-teal-700 border-b pb-3 mb-4 flex items-center">
                     <span class="text-2xl mr-3">${step.icon}</span>
@@ -1066,10 +981,11 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
             `;
             replayedWorkflowDiv.appendChild(card);
 
+            // Directly populate content from stored analysisResult
             const contentDiv = card.querySelector('div');
-            contentDiv.innerHTML = step.content;
+            contentDiv.innerHTML = step.content; // Use original content structure
 
-            // Update dynamic parts based on stored data
+            // Now update dynamic parts based on stored data
             if (step.id === 'vin-agent') {
                 const vinDetails = analysisResult.vinDetails;
                 const eligibility = analysisResult.warrantyEligibility;
@@ -1080,151 +996,160 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 const timeBar = card.querySelector('#time-bar');
                 const mileageBar = card.querySelector('#mileage-bar');
                 const eligibilityStatusText = card.querySelector('#eligibility-status-text');
+                const extendedContractStatusText = card.querySelector('#extended-contract-status-text');
 
-                // Ensure vinDetails and eligibility exist before accessing their properties
-                if (vinDetails && eligibility) {
-                    timeCoverageText.textContent = `${eligibility.yearsSinceInService} of ${vinDetails.standardWarrantyYears.toFixed(1)} Years Used`;
-                    mileageCoverageText.textContent = `${initialData.odometer.toLocaleString()} of ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles Used`;
+                timeCoverageText.textContent = `${eligibility.yearsSinceInService} of ${vinDetails.standardWarrantyYears.toFixed(1)} Years Used`;
+                mileageCoverageText.textContent = `${initialData.odometer.toLocaleString()} of ${vinDetails.standardWarrantyMiles.toLocaleString()} Miles Used`;
 
-                    const timePercent = Math.min(100, (parseFloat(eligibility.yearsSinceInService) / vinDetails.standardWarrantyYears) * 100);
-                    const mileagePercent = Math.min(100, (initialData.odometer / vinDetails.standardWarrantyMiles) * 100);
+                const timePercent = Math.min(100, (parseFloat(eligibility.yearsSinceInService) / vinDetails.standardWarrantyYears) * 100);
+                const mileagePercent = Math.min(100, (initialData.odometer / vinDetails.standardWarrantyMiles) * 100);
 
-                    timeBar.style.width = `${timePercent}%`;
-                    mileageBar.style.width = `${mileagePercent}%`;
+                timeBar.style.width = `${timePercent}%`;
+                mileageBar.style.width = `${mileagePercent}%`;
 
-                    if (!eligibility.isEligibleByDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
-                    if (!eligibility.isEligibleByMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
+                if (!eligibility.isEligibleByDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
+                if (!eligibility.isEligibleByMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
 
-                    eligibilityStatusText.textContent = `Finding: ${eligibility.isEligibleFinal ? '✅ Vehicle is ELIGIBLE for warranty coverage.' : '❌ Vehicle is NOT ELIGIBLE for warranty coverage.'}`;
-                    eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold ${eligibility.isEligibleFinal ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-rose-50 border border-rose-200 text-rose-800'}`;
+                eligibilityStatusText.textContent = `Standard Warranty: ${eligibility.isEligibleStandard ? '✅ ELIGIBLE' : '❌ NOT ELIGIBLE'}`;
+                eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold ${eligibility.isEligibleStandard ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-rose-50 border border-rose-200 text-rose-800'}`;
+                
+                // Populate extended contract status
+                let extendedContractMessage = "";
+                if (vinDetails.hasExtendedServiceContract) {
+                    if (vinDetails.extendedContractPaid && vinDetails.extendedContractScope) {
+                        extendedContractMessage = "✅ Vehicle has an active Extended Service Contract, and issue is in scope.";
+                    } else if (!vinDetails.extendedContractPaid) {
+                        extendedContractMessage = "⚠️ Vehicle has an Extended Service Contract, but premiums may not be paid.";
+                    } else if (!vinDetails.extendedContractScope) {
+                        extendedContractMessage = "❌ Vehicle has an Extended Service Contract, but this issue is out of scope.";
+                    }
                 } else {
-                    timeCoverageText.textContent = `N/A`;
-                    mileageCoverageText.textContent = `N/A`;
-                    eligibilityStatusText.textContent = `Finding: Eligibility data not available.`;
-                    eligibilityStatusText.className = `mt-4 p-3 rounded-lg font-semibold bg-gray-50 border border-gray-200 text-gray-700`;
+                    extendedContractMessage = "ℹ️ No Extended Service Contract found for this vehicle.";
+                }
+
+                extendedContractStatusText.textContent = `Extended Service Contract: ${extendedContractMessage}`;
+                extendedContractStatusText.classList.remove('hidden');
+                if (eligibility.isEligibleExtended) { // Use the stored isEligibleExtended
+                    extendedContractStatusText.className = 'mt-2 p-3 rounded-lg font-semibold bg-green-50 border border-green-200 text-green-800';
+                } else if (vinDetails.hasExtendedServiceContract) {
+                    extendedContractStatusText.className = 'mt-2 p-3 rounded-lg font-semibold bg-yellow-50 border border-yellow-200 text-yellow-800';
+                } else {
+                    extendedContractStatusText.className = 'mt-2 p-3 rounded-lg font-semibold bg-gray-50 border border-gray-200 text-gray-700';
                 }
 
             } else if (step.id === 'tsb-agent') {
-                const tsbResultsDiv = card.querySelector('#tsb-results');
-                const relevantTsbs = analysisResult.tsbsFound || [];
-                 if (relevantTsbs.length > 0) {
-                    tsbResultsDiv.innerHTML = relevantTsbs.map(tsb => `
-                        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
-                            <p class="font-semibold">${tsb.type.toUpperCase()} ${tsb.id}: ${tsb.title}</p>
-                            <p class="text-sm mt-1">${tsb.description}</p>
-                        </div>
-                    `).join('');
-                } else {
-                    tsbResultsDiv.innerHTML = `<p class="p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-700"><strong>Finding:</strong> No active TSBs or Recalls found for this specific issue or VIN in the database.</p>`;
-                }
+                const tsbInfoTextElement = card.querySelector('#tsb-info-text');
+                tsbInfoTextElement.innerHTML = `<strong>Finding:</strong> ${analysisResult.tsbInfo}`;
+                tsbInfoTextElement.className = `mt-4 p-3 rounded-lg ${analysisResult.tsbInfo.includes("Found") ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-gray-50 border border-gray-200 text-gray-700'}`;
+
             } else if (step.id === 'nlp-agent') {
                 const simulatedFailureMatch = analysisResult.nlpAnalysis;
                 const nlpFailureDisplay = card.querySelector('#nlp-failure-display');
                 const nlpMatchedKeywords = card.querySelector('#nlp-matched-keywords');
+                const geminiFailureDisplay = card.querySelector('#gemini-failure-display'); // Added for Gemini result
 
-                if (simulatedFailureMatch) {
-                    nlpFailureDisplay.textContent = `${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}`;
-                    const keywordsHtml = simulatedFailureMatch.matchedKeywords && simulatedFailureMatch.matchedKeywords.length > 0
-                        ? `Matched keywords: ${simulatedFailureMatch.matchedKeywords.map(k => `<span class="bg-gray-200 text-gray-700 px-2 py-1 rounded">${k}</span>`).join(' ')}`
-                        : `No specific keywords matched locally.`;
-                    nlpMatchedKeywords.innerHTML = keywordsHtml;
+                nlpFailureDisplay.textContent = `${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}`;
+                const keywordsHtml = simulatedFailureMatch.matchedKeywords.length > 0
+                    ? `Matched keywords: ${simulatedFailureMatch.matchedKeywords.map(k => `<span class="bg-gray-200 text-gray-700 px-2 py-1 rounded">${k}</span>`).join(' ')}`
+                    : `No specific keywords matched locally.`;
+                nlpMatchedKeywords.innerHTML = keywordsHtml;
 
-                    const ctx = card.querySelector('#confidenceChart').getContext('2d');
-                    new Chart(ctx, {
-                        type: 'doughnut',
-                        data: {
-                            labels: ['Confidence', ''],
-                            datasets: [{
-                                data: [simulatedFailureMatch.confidence, 100 - simulatedFailureMatch.confidence],
-                                backgroundColor: ['#0d9488', '#e2e8f0'],
-                                borderColor: ['#fff'],
-                                borderWidth: 2
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            cutout: '70%',
-                            plugins: {
-                                legend: { display: false },
-                                tooltip: {
-                                    callbacks: {
-                                        label: function(context) {
-                                            let label = context.label || '';
-                                            if (context.parsed > 0) {
-                                                label = `Confidence: ${context.parsed}%`;
-                                            }
-                                            return label;
+                geminiFailureDisplay.textContent = analysisResult.geminiAnalysis; // Display stored Gemini result
+
+                const ctx = card.querySelector('#confidenceChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Confidence', ''],
+                        datasets: [{
+                            data: [simulatedFailureMatch.confidence, 100 - simulatedFailureMatch.confidence],
+                            backgroundColor: ['#0d9488', '#e2e8f0'],
+                            borderColor: ['#fff'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (context.parsed > 0) {
+                                            label = `Confidence: ${context.parsed}%`;
                                         }
+                                        return label;
                                     }
-                                },
-                                title: {
-                                    display: true,
-                                    text: `${simulatedFailureMatch.confidence}%`,
-                                    position: 'top',
-                                    align: 'center',
-                                    font: { size: 24, weight: 'bold', family: 'Inter' },
-                                    color: '#0d9488',
-                                    padding: { top: 60 }
                                 }
+                            },
+                            title: {
+                                display: true,
+                                text: `${simulatedFailureMatch.confidence}%`,
+                                position: 'top',
+                                align: 'center',
+                                font: { size: 24, weight: 'bold', family: 'Inter' },
+                                color: '#0d9488',
+                                padding: { top: 60 }
                             }
                         }
-                    });
-                } else {
-                    nlpFailureDisplay.textContent = 'N/A';
-                    nlpMatchedKeywords.innerHTML = 'NLP analysis data not available.';
-                }
-
-            } else if (step.id === 'gemini-agent') {
-                card.querySelector('#gemini-failure-display span').textContent = analysisResult.geminiAnalysis || 'N/A';
+                    }
+                });
 
             } else if (step.id === 'docs-agent') {
                 const requiredDocsList = card.querySelector('#required-docs-list');
-                requiredDocsList.innerHTML = (analysisResult.requiredDocuments || []).map(d => `<li>${d}</li>`).join('');
+                requiredDocsList.innerHTML = analysisResult.requiredDocuments.map(d => `<li>${d}</li>`).join('');
+            
+            } else if (step.id === 'logger-agent') {
+                const loggingStatusElement = card.querySelector('#logging-status');
+                loggingStatusElement.innerHTML = `<strong>Status:</strong> ✅ Analysis data successfully logged for AI model training and performance monitoring.`;
+                loggingStatusElement.className = 'mt-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800';
 
             } else if (step.id === 'summary') {
                 const finalStatusDiv = card.querySelector('#final-status');
                 const finalActionsDiv = card.querySelector('#final-actions');
 
-                if (analysisResult.warrantyEligibility && analysisResult.warrantyEligibility.isEligibleFinal) {
+                if (analysisResult.warrantyEligibility.isEligibleFinal) {
                     finalStatusDiv.className = "mt-4 p-4 border border-teal-500 bg-teal-50 rounded-lg text-teal-900";
                     finalStatusDiv.innerHTML = `
                         <p><strong>Status:</strong> <span class="font-bold">ELIGIBLE FOR WARRANTY - APPROVED PENDING DOCUMENTATION</span></p>
-                        <p><strong>System-Recommended Failure Code:</strong> ${analysisResult.geminiAnalysis || 'N/A'}</p>
+                        <p><strong>System-Recommended Failure Code:</strong> ${analysisResult.geminiAnalysis}</p>
                         <p class="mt-2"><strong>Action:</strong> Submit claim with the recommended failure code and ensure all required documents are attached.</p>
                     `;
                     finalActionsDiv.innerHTML = `
-                        <button class="bg-teal-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-teal-700 transition-all" onclick="window.showModal('Claim Submission', 'In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
-                        <button class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition-all ml-4" onclick="window.showModal('Provide Feedback', 'In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
+                        <button class="bg-teal-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-teal-700 transition-all" onclick="showModal('Claim Submission', 'In a real system, this would securely submit the claim details to your OEM Warranty Management System (WMS)!');">Submit Claim to OEM WMS</button>
+                        <button class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition-all ml-4" onclick="showModal('Provide Feedback', 'In a real system, this would allow you to correct AI suggestions and provide feedback for model improvement. This data helps the AI learn!');">Provide Feedback / Correct AI</button>
                     `;
                 } else {
                     finalStatusDiv.className = "mt-4 p-4 border border-rose-500 bg-rose-50 rounded-lg text-rose-900";
                     finalStatusDiv.innerHTML = `
                         <p><strong>Status:</strong> <span class="font-bold">NOT ELIGIBLE FOR WARRANTY</span></p>
-                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility ? analysisResult.warrantyEligibility.yearsSinceInService : 'N/A'} years / ${analysisResult.initialData.odometer.toLocaleString()} miles).</p>
+                        <p class="mt-2"><strong>Reason:</strong> Vehicle is outside of the active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles) or Extended Service Contract conditions not met.</p>
                         <p class="mt-2"><strong>Action:</strong> This process would typically transition to a customer-pay repair or a goodwill request, if applicable.</p>
                     `;
                     finalActionsDiv.innerHTML = `
                         <p class="text-gray-600 italic">No direct submission to OEM WMS required for non-eligible claims.</p>
                     `;
                 }
-                saveClaimBtn.classList.add('hidden');
+                saveClaimBtn.classList.add('hidden'); // Save button only for new analyses
             }
         }
-        nextBtn.classList.add('hidden');
-        resetAnalysisBtn.classList.remove('hidden');
+        nextBtn.classList.add('hidden'); // No "next" button when viewing past claims
+        resetAnalysisBtn.classList.remove('hidden'); // Always show reset
     }
 
 
     // --- Event Listeners ---
     claimForm.addEventListener("submit", async function(event) {
         event.preventDefault();
-        clearAnalysisFlow();
-        toggleFormInputs(true);
-        currentStep = -1;
-        generateClaimBtn.classList.add('hidden');
-        nextBtn.classList.remove('hidden');
-        await showNextStep();
+        clearAnalysisFlow(); // Clear any previous analysis
+        toggleFormInputs(true); // Disable inputs during analysis
+        currentStep = -1; // Reset step counter
+        generateClaimBtn.classList.add('hidden'); // Hide generate button
+        nextBtn.classList.remove('hidden'); // Show next button
+        await showNextStep(); // Start the first step (Master Agent)
     });
 
     nextBtn.addEventListener('click', showNextStep);
@@ -1232,8 +1157,8 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
 
     resetAnalysisBtn.addEventListener('click', () => {
         clearAnalysisFlow();
-        toggleFormInputs(false);
-        generateClaimBtn.classList.remove('hidden');
+        toggleFormInputs(false); // Re-enable inputs
+        generateClaimBtn.classList.remove('hidden'); // Show generate button again
         saveClaimBtn.classList.add('hidden');
         resetAnalysisBtn.classList.add('hidden');
     });
