@@ -7,54 +7,55 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
+        // Removed Firebase imports and initialization as we are using localStorage
         // Firebase configuration and initialization (MANDATORY GLOBALS)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        // const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let app;
-        let db;
-        let auth;
-        let userId = null;
+        // let app;
+        // let db;
+        // let auth;
+        // let userId = null; // No longer needed for localStorage
 
-        // Initialize Firebase when the script loads
-        if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.projectId) {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
+        // Removed Firebase initialization block
+        // if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.projectId) {
+        //     app = initializeApp(firebaseConfig);
+        //     db = firestore.getFirestore(app);
+        //     auth = getAuth(app);
 
-            // Authenticate user
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    console.log("Firebase Auth Ready. User ID:", userId);
-                    window.dispatchEvent(new CustomEvent('firebaseAuthReady', { detail: { db, auth, userId } }));
-                } else if (initialAuthToken) {
-                    try {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } catch (error) {
-                        console.error("Error signing in with custom token:", error);
-                        await signInAnonymously(auth); // Fallback to anonymous
-                    }
-                } else {
-                    await signInAnonymously(auth);
-                }
-            });
-        } else {
-            console.error("Firebase config not found or invalid. Firestore features will be disabled.");
-        }
+        //     onAuthStateChanged(auth, async (user) => {
+        //         if (user) {
+        //             userId = user.uid;
+        //             console.log("Firebase Auth Ready. User ID:", userId);
+        //             window.dispatchEvent(new CustomEvent('firebaseAuthReady', { detail: { db, auth, userId } }));
+        //         } else if (initialAuthToken) {
+        //             try {
+        //                 await signInWithCustomToken(auth, initialAuthToken);
+        //             } catch (error) {
+        //                 console.error("Error signing in with custom token:", error);
+        //                 await signInAnonymously(auth);
+        //             }
+        //         } else {
+        //             await signInAnonymously(auth);
+        //         }
+        //     });
+        // } else {
+        //     console.error("Firebase config not found or invalid. Firestore features will be disabled.");
+        // }
 
-        // Expose Firebase instances globally (or via a window object) for use in other scripts
-        window.firebaseInstances = {
-            getDb: () => db,
-            getAuth: () => auth,
-            getUserId: () => userId
-        };
-        window.firebaseApp = app;
+        // Removed Firebase instance exposure
+        // window.firebaseInstances = {
+        //     getDb: () => db,
+        //     getAuth: () => auth,
+        //     getUserId: () => userId
+        // };
+        // window.firebaseApp = app;
+
+        // Initialize localStorage on window load
+        window.addEventListener('load', () => {
+            loadPastClaims(); // Load claims from localStorage on page load
+        });
     </script>
     <style>
         body {
@@ -141,7 +142,7 @@
             <h1 class="text-3xl md:text-4xl font-bold text-teal-700">Deployable Multi-Agent Warranty System</h1>
             <p class="text-gray-600 mt-2">A proof-of-concept for AI-powered warranty claim processing with persistence.</p>
             <div id="user-status" class="text-sm mt-4 text-gray-500 hidden">
-                Loading user session...
+                <!-- User ID status removed as localStorage does not use user IDs for persistence -->
             </div>
         </header>
 
@@ -217,9 +218,9 @@
             <h2 class="text-xl font-semibold text-gray-700 border-b pb-3 mb-4 flex items-center">
                 <span class="text-2xl mr-3">📂</span> Past Claims
             </h2>
-            <p class="text-gray-600 mb-4">Review previously analyzed and saved warranty claims. Data is retrieved from a lightweight cloud database (Firestore).</p>
+            <p class="text-gray-600 mb-4">Review previously analyzed and saved warranty claims. Data is retrieved from local storage.</p>
             <div id="past-claims-list" class="space-y-4">
-                <p class="text-center text-gray-500" id="no-claims-message">Loading past claims...</p>
+                <p class="text-center text-gray-500" id="no-claims-message">No past claims found.</p>
             </div>
         </section>
 
@@ -238,21 +239,20 @@
     </div>
 
 <script type="module">
-    // Access Firebase instances from window
-    // Ensure that db, auth, and userId are initialized before attempting to use them.
-    let db = null;
-    let auth = null;
-    let userId = null;
+    // Removed Firebase related global variables
+    // let db = null;
+    // let auth = null;
+    // let userId = null;
 
-    // Listen for the custom event fired when Firebase Auth is ready
-    window.addEventListener('firebaseAuthReady', (event) => {
-        db = event.detail.db;
-        auth = event.detail.auth;
-        userId = event.detail.userId;
-        document.getElementById('user-status').textContent = `User ID: ${userId}`;
-        document.getElementById('user-status').classList.remove('hidden');
-        loadPastClaims(); // Load claims only after auth is ready
-    });
+    // Removed Firebase Auth Ready event listener
+    // window.addEventListener('firebaseAuthReady', (event) => {
+    //     db = event.detail.db;
+    //     auth = event.detail.auth;
+    //     userId = event.detail.userId;
+    //     document.getElementById('user-status').textContent = `User ID: ${userId}`;
+    //     document.getElementById('user-status').classList.remove('hidden');
+    //     loadPastClaims(); // Load claims only after auth is ready
+    // });
 
     // Constants
     const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
@@ -506,7 +506,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
             title: 'VIN & Warranty Eligibility Agent',
             icon: '🛡️',
             content: `
-                <p>This agent connects to a Edmund's VIN lookup service to retrieve vehicle details and then cross-references with OEM warranty policies.</p>
+                <p>This agent connects to Edmund's VIN lookup service to retrieve vehicle details and then cross-references with OEM warranty policies.</p>
                 <div class="mt-4 space-y-4">
                     <div>
                         <div class="flex justify-between text-sm font-medium mb-1"><span>Time Coverage</span><span id="time-coverage-text"></span></div>
@@ -563,7 +563,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 const mileagePercent = Math.min(100, (analysisResult.initialData.odometer / vinDetails.standardWarrantyMiles) * 100);
 
                 timeBar.style.width = `${timePercent}%`;
-                mileageBar.style.width = `${milegagePercent}%`;
+                mileageBar.style.width = `${mileagePercent}%`;
 
                 if (!isEligibleByDate) { timeBar.classList.add('expired'); } else { timeBar.classList.remove('expired'); }
                 if (!isEligibleByMileage) { mileageBar.classList.add('expired'); } else { mileageBar.classList.remove('expired'); }
@@ -602,7 +602,8 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 <p id="tsb-info-text" class="mt-4 p-3 rounded-lg"></p>
             `,
             action: async () => {
-                let tsbInfo = "No active TSBs or Recalls found for this specific issue or VIN.";
+                // Modified text as per request
+                let tsbInfo = "No non-compliance TSBs or Recalls found for this specific issue or VIN.";
                 const product = analysisResult.initialData.product.toLowerCase();
                 const part = analysisResult.initialData.part;
                 const diagnosis = analysisResult.initialData.technicianDiagnosis;
@@ -623,22 +624,34 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
         },
         {
             id: 'nlp-agent',
-            title: 'NLP Early Warning Agent',
+            title: 'NLP Early Warning Agent', // Combined agent title
             icon: '🧠',
             content: `
-                <p>This agent performs a rapid, preliminary analysis of the technician's diagnosis using a local knowledge base.</p>
+                <p>This agent performs a rapid, preliminary analysis of the technician's diagnosis using a local knowledge base, then consults an advanced AI model for a definitive recommendation.</p>
                 <div class="flex flex-col md:flex-row items-center justify-center gap-6 mt-4">
                     <div class="chart-container"><canvas id="confidenceChart"></canvas></div>
                     <div class="flex-1">
-                        <p class="font-semibold text-gray-700">Preliminary Suggestion:</p>
+                        <p class="font-semibold text-gray-700">Preliminary Suggestion (Local NLP):</p>
                         <p id="nlp-failure-display" class="text-xl font-bold text-amber-600"></p>
                         <p id="nlp-matched-keywords" class="mt-2 text-sm text-gray-500"></p>
                     </div>
                 </div>
+                <div id="gemini-section" class="mt-4">
+                    <p class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
+                        <strong class="text-blue-900">System-Recommended Failure Code (Advanced AI):</strong>
+                        <span class="block text-xl font-bold mt-1" id="gemini-failure-display-combined"></span>
+                    </p>
+                    <p class="text-sm text-center mt-2 text-gray-500">Advanced analysis refines the preliminary finding.</p>
+                </div>
             `,
             action: async () => {
+                // Existing NLP logic
                 const simulatedFailureMatch = getSimulatedFailureCode(analysisResult.initialData.technicianDiagnosis, analysisResult.initialData.part);
-                analysisResult.nlpAnalysis = simulatedFailureMatch;
+                
+                // Store initial NLP analysis
+                analysisResult.nlpAnalysis = {
+                    ...simulatedFailureMatch, // Spread existing NLP analysis properties
+                };
 
                 const nlpFailureDisplay = document.getElementById('nlp-failure-display');
                 const nlpMatchedKeywords = document.getElementById('nlp-matched-keywords');
@@ -693,28 +706,15 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                         }
                     }
                 });
-                return { success: true };
-            }
-        },
-        {
-            id: 'gemini-agent',
-            title: 'Advanced AI (Gemini) Diagnosis Agent',
-            icon: '💡',
-            content: `
-                <p>For higher accuracy, the diagnosis is sent to an advanced AI model for a definitive recommendation.</p>
-                <p id="gemini-failure-display" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
-                    <strong class="text-blue-900">System-Recommended Failure Code:</strong>
-                    <span class="block text-xl font-bold mt-1"></span>
-                </p>
-                <p class="text-sm text-center mt-2 text-gray-500">Advanced analysis refines the preliminary finding.</p>
-            `,
-            action: async () => {
+
+                // New Gemini integration logic (moved from original gemini-agent)
                 const geminiFailureCode = await getFailureCodeFromGemini(analysisResult.initialData.technicianDiagnosis, analysisResult.initialData.part);
-                analysisResult.geminiAnalysis = geminiFailureCode;
-                document.querySelector('#gemini-failure-display span').textContent = geminiFailureCode;
+                analysisResult.nlpAnalysis.geminiFailureCode = geminiFailureCode; // Store Gemini's result within nlpAnalysis
+                document.getElementById('gemini-failure-display-combined').textContent = geminiFailureCode; // Update the new combined display ID
                 return { success: true };
             }
         },
+        // Original gemini-agent removed as it's now combined into nlp-agent
         {
             id: 'docs-agent',
             title: 'Documentation Compiler Agent',
@@ -728,6 +728,32 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 analysisResult.requiredDocuments = docs;
                 const requiredDocsList = document.getElementById('required-docs-list');
                 requiredDocsList.innerHTML = docs.map(d => `<li>${d}</li>`).join('');
+                return { success: true };
+            }
+        },
+        {
+            id: 'knowledge-base-agent', // New agent added
+            title: 'Knowledge Base Learning Agent',
+            icon: '📚',
+            content: `
+                <p>This agent captures the problem, recommended resolution, and outcomes from the current analysis to continuously learn and improve future warranty predictions. This acts as a self-learning mechanism.</p>
+                <div class="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg text-purple-800">
+                    <p class="font-semibold mb-2">New Knowledge Entry Captured:</p>
+                    <p><strong>Problem:</strong> <span id="kb-problem"></span></p>
+                    <p><strong>Proposed Resolution:</strong> <span id="kb-resolution"></span></p>
+                    <p class="text-sm mt-3 text-purple-700 italic">This entry has been added to the system's knowledge base for future reference, contributing to a self-learning system.</p>
+                </div>
+            `,
+            action: async () => {
+                const problem = `Product: ${analysisResult.initialData.product}, Part: ${analysisResult.initialData.part}, Complaint: "${analysisResult.initialData.customerComplaint}"`;
+                const resolution = analysisResult.warrantyEligibility.isEligibleFinal
+                    ? `Eligible for warranty. System-Recommended Failure Code: ${analysisResult.nlpAnalysis.geminiFailureCode}. Required Docs: ${analysisResult.requiredDocuments.join(', ')}.`
+                    : `Not eligible for warranty. Reason: Vehicle outside of active warranty period (${analysisResult.warrantyEligibility.yearsSinceInService} years / ${analysisResult.initialData.odometer.toLocaleString()} miles).`;
+
+                analysisResult.knowledgeBaseEntry = { problem, resolution };
+
+                document.getElementById('kb-problem').textContent = problem;
+                document.getElementById('kb-resolution').textContent = resolution;
                 return { success: true };
             }
         },
@@ -748,7 +774,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                     finalStatusDiv.className = "mt-4 p-4 border border-teal-500 bg-teal-50 rounded-lg text-teal-900";
                     finalStatusDiv.innerHTML = `
                         <p><strong>Status:</strong> <span class="font-bold">ELIGIBLE FOR WARRANTY - APPROVED PENDING DOCUMENTATION</span></p>
-                        <p><strong>System-Recommended Failure Code:</strong> ${analysisResult.geminiAnalysis}</p>
+                        <p><strong>System-Recommended Failure Code:</strong> ${analysisResult.nlpAnalysis.geminiFailureCode}</p>
                         <p class="mt-2"><strong>Action:</strong> Submit claim with the recommended failure code and ensure all required documents are attached.</p>
                     `;
                     finalActionsDiv.innerHTML = `
@@ -822,24 +848,24 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
         }
     }
 
-    // --- Firebase / Firestore Operations ---
+    // --- Local Storage Operations ---
 
-    async function saveClaimToFirestore() {
-        if (!db || !userId) {
-            await showModal("Error", "Firestore is not initialized. Please wait for the user session to load or check console for errors.");
-            return;
-        }
-        const confirm = await showModal("Confirm Save", "Do you want to save this analysis to your past claims?", true);
+    async function saveClaimToFirestore() { // Renamed to saveClaimToLocalStorage for clarity
+        const confirm = await showModal("Confirm Save", "Do you want to save this analysis to your past claims (local storage)?", true);
         if (confirm) {
             try {
                 loadingIndicator.classList.remove('hidden');
-                const claimsCollectionRef = collection(db, `artifacts/${window.__app_id}/users/${userId}/claims`);
-                await addDoc(claimsCollectionRef, analysisResult);
+                let claims = JSON.parse(localStorage.getItem('warrantyClaims')) || [];
+                // Add a unique ID to each claim for easier retrieval/display
+                analysisResult.id = Date.now().toString(); // Simple unique ID
+                claims.push(analysisResult);
+                localStorage.setItem('warrantyClaims', JSON.stringify(claims));
                 loadingIndicator.classList.add('hidden');
-                await showModal("Success", "Claim analysis saved successfully!");
+                await showModal("Success", "Claim analysis saved successfully to local storage!");
                 saveClaimBtn.classList.add('hidden'); // Hide save button after saving
+                loadPastClaims(); // Reload past claims to show the newly saved one
             } catch (e) {
-                console.error("Error adding document: ", e);
+                console.error("Error saving to local storage: ", e);
                 loadingIndicator.classList.add('hidden');
                 await showModal("Error", `Failed to save claim: ${e.message}`);
             }
@@ -847,50 +873,38 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
     }
 
     async function loadPastClaims() {
-        if (!db || !userId) {
-            // This case is handled by the firebaseAuthReady event listener
-            return;
-        }
-
         pastClaimsList.innerHTML = '';
-        noClaimsMessage.textContent = 'Loading past claims...';
+        noClaimsMessage.textContent = 'Loading past claims from local storage...';
         noClaimsMessage.classList.remove('hidden');
 
         try {
-            const claimsCollectionRef = collection(db, `artifacts/${window.__app_id}/users/${userId}/claims`);
-            // Order by timestamp in descending order (most recent first)
-            const q = query(claimsCollectionRef, orderBy('timestamp', 'desc'));
+            const claims = JSON.parse(localStorage.getItem('warrantyClaims')) || [];
+            
+            if (claims.length === 0) {
+                noClaimsMessage.textContent = 'No past claims found.';
+                noClaimsMessage.classList.remove('hidden');
+            } else {
+                noClaimsMessage.classList.add('hidden');
+                // Sort by timestamp in descending order (most recent first)
+                claims.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-            onSnapshot(q, (snapshot) => {
-                pastClaimsList.innerHTML = ''; // Clear existing list
-                if (snapshot.empty) {
-                    noClaimsMessage.textContent = 'No past claims found.';
-                    noClaimsMessage.classList.remove('hidden');
-                } else {
-                    noClaimsMessage.classList.add('hidden');
-                    snapshot.forEach((doc) => {
-                        const claim = doc.data();
-                        const claimId = doc.id;
-                        const claimDate = new Date(claim.timestamp).toLocaleString();
-                        const card = document.createElement('div');
-                        card.className = 'bg-gray-100 p-4 rounded-lg shadow-sm cursor-pointer hover:bg-gray-200 transition-colors';
-                        card.innerHTML = `
-                            <p class="font-semibold text-gray-800">Claim on ${claim.initialData.product} (${claim.initialData.vin})</p>
-                            <p class="text-sm text-gray-600">Analyzed: ${claimDate}</p>
-                            <p class="text-sm text-gray-600">Part: ${claim.initialData.part}</p>
-                            <p class="text-sm text-gray-600">Status: ${claim.warrantyEligibility ? (claim.warrantyEligibility.isEligibleFinal ? 'Eligible' : 'Not Eligible') : 'N/A'}</p>
-                        `;
-                        card.onclick = () => displayPastClaimDetails(claim);
-                        pastClaimsList.appendChild(card);
-                    });
-                }
-            }, (error) => {
-                console.error("Error listening to claims: ", error);
-                noClaimsMessage.textContent = `Error loading claims: ${error.message}`;
-            });
+                claims.forEach((claim) => {
+                    const claimDate = new Date(claim.timestamp).toLocaleString();
+                    const card = document.createElement('div');
+                    card.className = 'bg-gray-100 p-4 rounded-lg shadow-sm cursor-pointer hover:bg-gray-200 transition-colors';
+                    card.innerHTML = `
+                        <p class="font-semibold text-gray-800">Claim on ${claim.initialData.product} (${claim.initialData.vin})</p>
+                        <p class="text-sm text-gray-600">Analyzed: ${claimDate}</p>
+                        <p class="text-sm text-gray-600">Part: ${claim.initialData.part}</p>
+                        <p class="text-sm text-gray-600">Status: ${claim.warrantyEligibility ? (claim.warrantyEligibility.isEligibleFinal ? 'Eligible' : 'Not Eligible') : 'N/A'}</p>
+                    `;
+                    card.onclick = () => displayPastClaimDetails(claim);
+                    pastClaimsList.appendChild(card);
+                });
+            }
         } catch (e) {
-            console.error("Error setting up claims listener: ", e);
-            noClaimsMessage.textContent = `Error initializing claims view: ${e.message}`;
+            console.error("Error loading from local storage: ", e);
+            noClaimsMessage.textContent = `Error loading claims: ${e.message}`;
         }
     }
 
@@ -922,6 +936,11 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
         // Re-run the steps, but only populate from stored results
         for (let i = 0; i < steps.length; i++) {
             const step = steps[i];
+            // Skip the old gemini-agent if it existed as a separate step (now combined in nlp-agent)
+            if (step.id === 'gemini-agent') { // This condition remains valid if any older saved claims might still have a 'gemini-agent' ID.
+                 continue;
+            }
+
             const card = document.createElement('div');
             card.id = `card-${step.id}`;
             card.className = 'agent-card bg-white p-6 rounded-xl shadow-md'; // Already visible
@@ -995,12 +1014,20 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                 const simulatedFailureMatch = analysisResult.nlpAnalysis;
                 const nlpFailureDisplay = card.querySelector('#nlp-failure-display');
                 const nlpMatchedKeywords = card.querySelector('#nlp-matched-keywords');
+                const geminiFailureDisplayCombined = card.querySelector('#gemini-failure-display-combined');
+
 
                 nlpFailureDisplay.textContent = `${simulatedFailureMatch.code} - ${simulatedFailureMatch.name}`;
                 const keywordsHtml = simulatedFailureMatch.matchedKeywords.length > 0
                     ? `Matched keywords: ${simulatedFailureMatch.matchedKeywords.map(k => `<span class="bg-gray-200 text-gray-700 px-2 py-1 rounded">${k}</span>`).join(' ')}`
                     : `No specific keywords matched locally.`;
                 nlpMatchedKeywords.innerHTML = keywordsHtml;
+
+                // Populate combined Gemini section
+                if (simulatedFailureMatch.geminiFailureCode) {
+                    geminiFailureDisplayCombined.textContent = simulatedFailureMatch.geminiFailureCode;
+                }
+
 
                 const ctx = card.querySelector('#confidenceChart').getContext('2d');
                 new Chart(ctx, {
@@ -1044,14 +1071,18 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                     }
                 });
 
-            } else if (step.id === 'gemini-agent') {
-                card.querySelector('#gemini-failure-display span').textContent = analysisResult.geminiAnalysis;
-
             } else if (step.id === 'docs-agent') {
                 const requiredDocsList = card.querySelector('#required-docs-list');
                 requiredDocsList.innerHTML = analysisResult.requiredDocuments.map(d => `<li>${d}</li>`).join('');
 
-            } else if (step.id === 'summary') {
+            } else if (step.id === 'knowledge-base-agent') { // New agent for replay
+                const problem = analysisResult.knowledgeBaseEntry.problem;
+                const resolution = analysisResult.knowledgeBaseEntry.resolution;
+
+                card.querySelector('#kb-problem').textContent = problem;
+                card.querySelector('#kb-resolution').textContent = resolution;
+            }
+            else if (step.id === 'summary') {
                 const finalStatusDiv = card.querySelector('#final-status');
                 const finalActionsDiv = card.querySelector('#final-actions');
 
@@ -1059,7 +1090,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
                     finalStatusDiv.className = "mt-4 p-4 border border-teal-500 bg-teal-50 rounded-lg text-teal-900";
                     finalStatusDiv.innerHTML = `
                         <p><strong>Status:</strong> <span class="font-bold">ELIGIBLE FOR WARRANTY - APPROVED PENDING DOCUMENTATION</span></p>
-                        <p><strong>System-Recommended Failure Code:</strong> ${analysisResult.geminiAnalysis}</p>
+                        <p><strong>System-Recommended Failure Code:</strong> ${analysisResult.nlpAnalysis.geminiFailureCode}</p>
                         <p class="mt-2"><strong>Action:</strong> Submit claim with the recommended failure code and ensure all required documents are attached.</p>
                     `;
                     finalActionsDiv.innerHTML = `
@@ -1097,7 +1128,7 @@ Example desired output: "F213 - Gearbox Synchronizer Failure"`;
     });
 
     nextBtn.addEventListener('click', showNextStep);
-    saveClaimBtn.addEventListener('click', saveClaimToFirestore);
+    saveClaimBtn.addEventListener('click', saveClaimToLocalStorage); // Updated to call localStorage save function
 
     resetAnalysisBtn.addEventListener('click', () => {
         clearAnalysisFlow();
