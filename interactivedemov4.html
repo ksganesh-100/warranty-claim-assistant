@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployable Multi-Agent Warranty System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .card-enter {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        .card-enter-active {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+        .loading-dot {
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .loading-dot:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dot:nth-child(2) { animation-delay: -0.16s; }
+        .loading-dot:nth-child(3) { animation-delay: 0s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto bg-white p-6 rounded-lg shadow-xl">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Multi-Agent Warranty Claim Analysis</h1>
+
+        <form id="claimForm" class="mb-8 p-6 bg-blue-50 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold text-blue-800 mb-4">Claim Details</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="vin" class="block text-sm font-medium text-gray-700">VIN (Vehicle Identification Number):</label>
+                    <input type="text" id="vin" name="vin" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="e.g., JTMDV3FV6H710XXXXX" required>
+                </div>
+                <div>
+                    <label for="odometer" class="block text-sm font-medium text-gray-700">Odometer Reading (miles):</label>
+                    <input type="number" id="odometer" name="odometer" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="e.g., 30000" required>
+                </div>
+            </div>
+            <div class="mb-4">
+                <label for="customer_diagnosis" class="block text-sm font-medium text-gray-700">Customer's Stated Diagnosis/Concern:</label>
+                <textarea id="customer_diagnosis" name="customer_diagnosis" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="e.g., Engine making a knocking sound, check engine light on, car losing power." required></textarea>
+            </div>
+            <div class="flex justify-between items-center">
+                <button type="submit" id="generateClaimBtn" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Generate Claim Analysis</button>
+                <div id="loadingIndicator" class="hidden flex items-center space-x-2 text-blue-600">
+                    <div class="flex space-x-1">
+                        <span class="loading-dot w-2 h-2 bg-blue-600 rounded-full"></span>
+                        <span class="loading-dot w-2 h-2 bg-blue-600 rounded-full"></span>
+                        <span class="loading-dot w-2 h-2 bg-blue-600 rounded-full"></span>
+                    </div>
+                    <span>Agents Working...</span>
+                </div>
+                <button type="button" id="nextBtn" class="hidden bg-gray-500 text-white px-6 py-2 rounded-md hover:bg-gray-600 transition duration-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2" disabled>Next Agent</button>
+            </div>
+        </form>
+
+        <div id="orchestration-flow" class="space-y-6">
+            </div>
+
+        <div class="mt-8 pt-6 border-t border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Analysis Summary & Past Claims</h2>
+            <div id="summary-section" class="mb-6 bg-gray-50 p-4 rounded-md hidden">
+                <h3 class="text-lg font-medium text-gray-700 mb-2">Final Claim Outcome:</h3>
+                <div id="final-outcome" class="text-gray-900 font-bold text-md"></div>
+                <div id="oem-wms-status" class="text-gray-700 text-sm mt-2"></div>
+            </div>
+
+            <div class="flex justify-end space-x-4 mt-6">
+                <button type="button" id="saveClaimBtn" class="hidden bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">Save Claim Result</button>
+                <button type="button" id="resetAnalysisBtn" class="hidden bg-red-600 text-white px-6 py-2 rounded-md hover:bg-red-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">Start New Analysis</button>
+            </div>
+
+            <h3 class="text-lg font-semibold text-gray-800 mt-8 mb-4">Previously Saved Claims</h3>
+            <div id="past-claims-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                </div>
+        </div>
+
+        <div id="agent-log-panel" class="mt-8 p-6 bg-gray-800 text-white rounded-lg shadow-lg max-h-80 overflow-y-auto">
+            <h2 class="text-lg font-semibold mb-3 border-b border-gray-700 pb-2">Agent Activity Log</h2>
+            </div>
+
+    </div>
+
+<script type="module">
+    // Mock API responses - keeping these as is per instructions
+    const mockVinDetails = {
+        'JTMDV3FV6H710XXXXX': { model: 'RAV4', year: 2020, inServiceDate: '2020-05-15', warrantyMiles: 36000, warrantyMonths: 36, drivetrainType: 'AWD', engineType: '2.5L I4' },
+        'WAUPC2BH4LA12XXXXX': { model: 'A4', year: 2019, inServiceDate: '2019-01-20', warrantyMiles: 50000, warrantyMonths: 48, drivetrainType: 'FWD', engineType: '2.0L TFSI' },
+        '1FMJK1FT7HGAXXXXX': { model: 'F-150', year: 2021, inServiceDate: '2021-03-01', warrantyMiles: 60000, warrantyMonths: 60, drivetrainType: '4WD', engineType: '3.5L EcoBoost' },
+        // Add more mock VINs as needed
+    };
+
+    const mockTsbData = {
+        'RAV4': [
+            { code: 'TSB-001-20', title: 'Engine Knocking Noise on Cold Start', symptoms: ['knocking sound', 'cold start'], recommendedAction: 'Replace specific engine component.' },
+            { code: 'TSB-002-21', title: 'Transmission Shifting Irregularities', symptoms: ['hard shifting', 'slipping gears'], recommendedAction: 'Software update for transmission control module.' },
+        ],
+        'A4': [
+            { code: 'TSB-003-19', title: 'Carbon Buildup on Intake Valves', symptoms: ['engine misfire', 'reduced power'], recommendedAction: 'Engine decarbonization service.' },
+        ],
+        'F-150': [
+            { code: 'TSB-004-22', title: 'IWE Actuator Failure', symptoms: ['grinding noise from front wheels', '4WD engagement issues'], recommendedAction: 'Replace Integrated Wheel End (IWE) actuators.' },
+        ]
+    };
+
+    const getVinDetails = (vin) => new Promise(resolve => {
+        setTimeout(() => {
+            resolve(mockVinDetails[vin.toUpperCase()] || null);
+        }, 800 + Math.random() * 500); // Simulate network delay
+    });
+
+    const getFailureCodeFromGemini = async (diagnosis) => {
+        // This is a simulated call to Gemini, as per the original demo's structure.
+        // In a real application, you would replace this with an actual API call to Google's Gemini API.
+        // For this demo, we're mimicking a fixed set of responses.
+        const possibleCodes = [
+            { code: 'P0301', description: 'Cylinder 1 Misfire Detected' },
+            { code: 'P0420', description: 'Catalyst System Efficiency Below Threshold (Bank 1)' },
+            { code: 'P0171', description: 'System Too Lean (Bank 1)' },
+            { code: 'P0300', description: 'Random/Multiple Cylinder Misfire Detected' },
+            { code: 'P0401', description: 'Exhaust Gas Recirculation Flow Insufficient Detected' },
+            { code: 'P0700', description: 'Transmission Control System Malfunction' }
+        ];
+
+        let simulatedCode = null;
+        let confidence = 0.5; // Default confidence
+
+        // Simple keyword matching for demo purposes
+        if (diagnosis.toLowerCase().includes('engine knocking')) {
+            simulatedCode = possibleCodes[0]; // P0301
+            confidence = 0.9;
+        } else if (diagnosis.toLowerCase().includes('check engine light') || diagnosis.toLowerCase().includes('losing power')) {
+            simulatedCode = possibleCodes[2]; // P0171
+            confidence = 0.8;
+        } else if (diagnosis.toLowerCase().includes('transmission')) {
+            simulatedCode = possibleCodes[5]; // P0700
+            confidence = 0.95;
+        } else {
+            simulatedCode = possibleCodes[Math.floor(Math.random() * possibleCodes.length)];
+            confidence = 0.6;
+        }
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve({
+                    code: simulatedCode.code,
+                    description: simulatedCode.description,
+                    confidence: confidence
+                });
+            }, 1000 + Math.random() * 800); // Simulate Gemini API latency
+        });
+    };
+
+    const getRelevantTsb = (model, failureCode) => new Promise(resolve => {
+        setTimeout(() => {
+            const modelTsbs = mockTsbData[model] || [];
+            // Simple logic: return a TSB if its symptoms somewhat match the failure code description
+            const relevantTsb = modelTsbs.find(tsb =>
+                tsb.symptoms.some(symptom => failureCode.toLowerCase().includes(symptom.toLowerCase())) ||
+                tsb.code.toLowerCase().includes(failureCode.toLowerCase().slice(0, 5)) // Partial code match
+            );
+            resolve(relevantTsb || null);
+        }, 700 + Math.random() * 400); // Simulate network delay
+    });
+
+
+    // --- DOM Elements ---
+    const claimForm = document.getElementById('claimForm');
+    const orchestrationFlow = document.getElementById('orchestration-flow');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const nextBtn = document.getElementById('nextBtn');
+    const generateClaimBtn = document.getElementById('generateClaimBtn');
+    const saveClaimBtn = document.getElementById('saveClaimBtn');
+    const resetAnalysisBtn = document.getElementById('resetAnalysisBtn');
+    const summarySection = document.getElementById('summary-section');
+    const finalOutcome = document.getElementById('final-outcome');
+    const oemWmsStatus = document.getElementById('oem-wms-status');
+    const pastClaimsList = document.getElementById('past-claims-list');
+    const agentLogPanel = document.getElementById('agent-log-panel'); // New log panel
+
+    // --- Global State ---
+    let currentStep = -1;
+    let analysisResult = {}; // Object to hold the results of each agent's analysis
+
+    // --- Helper Functions ---
+
+    /**
+     * Appends a formatted log entry to the agent activity log panel.
+     * @param {string} agentName - The name of the agent.
+     * @param {string} message - The log message.
+     * @param {string} type - Type of message ('info', 'success', 'error', 'warning').
+     */
+    function appendLogEntry(agentName, message, type = 'info') {
+        const logEntry = document.createElement('p');
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+        let icon = '';
+        let textColor = 'text-gray-400'; // Default text color
+
+        switch (type) {
+            case 'info': icon = '➡️'; textColor = 'text-blue-300'; break;
+            case 'success': icon = '✅'; textColor = 'text-green-300'; break;
+            case 'error': icon = '❌'; textColor = 'text-red-300'; break;
+            case 'warning': icon = '⚠️'; textColor = 'text-yellow-300'; break;
+        }
+
+        logEntry.className = `text-sm mb-1 ${textColor}`;
+        logEntry.innerHTML = `[${timestamp}] <span class="font-bold">${agentName}</span>: ${icon} ${message}`;
+        agentLogPanel.appendChild(logEntry);
+        agentLogPanel.scrollTop = agentLogPanel.scrollHeight; // Auto-scroll to bottom
+    }
+
+
+    function clearAnalysisFlow() {
+        orchestrationFlow.innerHTML = '';
+        summarySection.classList.add('hidden');
+        analysisResult = {};
+        agentLogPanel.innerHTML = '<h2 class="text-lg font-semibold mb-3 border-b border-gray-700 pb-2">Agent Activity Log</h2>'; // Clear log
+    }
+
+    function toggleFormInputs(disable) {
+        document.getElementById('vin').disabled = disable;
+        document.getElementById('odometer').disabled = disable;
+        document.getElementById('customer_diagnosis').disabled = disable;
+    }
+
+    function saveClaimToLocalStorage() {
+        let savedClaims = JSON.parse(localStorage.getItem('warrantyClaims')) || [];
+        // Add a timestamp for unique ID and sorting
+        analysisResult.timestamp = new Date().toISOString();
+        savedClaims.unshift(analysisResult); // Add to the beginning
+        localStorage.setItem('warrantyClaims', JSON.stringify(savedClaims));
+        alert('Claim analysis saved!');
+        loadPastClaims(); // Reload list to show the new claim
+    }
+
+    function loadPastClaims() {
+        pastClaimsList.innerHTML = '';
+        let savedClaims = JSON.parse(localStorage.getItem('warrantyClaims')) || [];
+
+        if (savedClaims.length === 0) {
+            pastClaimsList.innerHTML = '<p class="text-gray-500 italic text-center col-span-full">No past claims saved yet.</p>';
+            return;
+        }
+
+        savedClaims.forEach((claim, index) => {
+            const claimCard = document.createElement('div');
+            claimCard.className = 'bg-white p-4 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition duration-300 cursor-pointer';
+            claimCard.innerHTML = `
+                <h4 class="font-bold text-md text-gray-800 mb-2">Claim for ${claim.vinDetails?.model || 'N/A'} (VIN: ${claim.vin?.slice(-5) || 'N/A'})</h4>
+                <p class="text-sm text-gray-600 mb-1">Date: ${new Date(claim.timestamp).toLocaleDateString()}</p>
+                <p class="text-sm text-gray-600 mb-1">Odometer: ${claim.odometer || 'N/A'} miles</p>
+                <p class="text-sm text-gray-700 font-semibold mt-2">Outcome: <span class="${claim.finalStatus === 'ELIGIBLE & APPROVED' ? 'text-green-700' : 'text-red-700'}">${claim.finalStatus || 'Pending'}</span></p>
+            `;
+            claimCard.onclick = () => displayPastClaim(claim);
+            pastClaimsList.appendChild(claimCard);
+        });
+    }
+
+    function displayPastClaim(claim) {
+        clearAnalysisFlow(); // Clear current flow
+        currentStep = -1; // Reset step counter
+        toggleFormInputs(true); // Disable inputs
+        generateClaimBtn.classList.add('hidden'); // Hide generate button
+        nextBtn.classList.add('hidden'); // Hide next button
+        saveClaimBtn.classList.add('hidden'); // Hide save button when viewing past
+        resetAnalysisBtn.classList.remove('hidden'); // Show reset button
+
+        // Populate form fields with past claim data
+        document.getElementById('vin').value = claim.vin || '';
+        document.getElementById('odometer').value = claim.odometer || '';
+        document.getElementById('customer_diagnosis').value = claim.customerDiagnosis || '';
+
+
+        // Reconstruct the orchestration flow based on saved data
+        // This is a simplified reconstruction. For a full historical view, you might save more detailed step-by-step logs.
+        const agentStates = [
+            {
+                id: 'master-agent',
+                title: 'Master Agent: Claim Orchestration',
+                icon: '🤖',
+                status: 'Completed',
+                finding: 'Orchestrated the claim analysis process.'
+            },
+            {
+                id: 'vin-agent',
+                title: 'VIN & Warranty Eligibility Agent',
+                icon: '🚗',
+                status: claim.vinDetails ? 'Completed' : 'Skipped',
+                finding: claim.vinDetails ? `VIN Details: Model ${claim.vinDetails.model}, Year ${claim.vinDetails.year}, In-Service Date: ${claim.vinDetails.inServiceDate}.` : 'VIN details not found/skipped.',
+                eligibility: claim.warrantyEligible ? 'ELIGIBLE' : 'NOT ELIGIBLE'
+            },
+            {
+                id: 'nlp-early-warning',
+                title: 'NLP Early Warning Agent',
+                icon: '🧠',
+                status: claim.geminiAnalysis ? 'Completed' : 'Skipped',
+                finding: claim.geminiAnalysis ? `Analyzed diagnosis. Predicted Failure Code: ${claim.geminiAnalysis.code} - ${claim.geminiAnalysis.description} (Confidence: ${(claim.geminiAnalysis.confidence * 100).toFixed(1)}%).` : 'NLP analysis skipped/not available.',
+                details: claim.geminiAnalysis
+            },
+            {
+                id: 'tsb-lookup',
+                title: 'TSB Lookup Agent',
+                icon: '📄',
+                status: claim.relevantTsb ? 'Completed' : 'Skipped/No TSB Found',
+                finding: claim.relevantTsb ? `Found relevant TSB: ${claim.relevantTsb.code} - ${claim.relevantTsb.title}. Recommended Action: ${claim.relevantTsb.recommendedAction}` : 'No directly relevant TSB found for the predicted failure code.',
+                details: claim.relevantTsb
+            },
+            {
+                id: 'documentation-compiler',
+                title: 'Documentation Compiler Agent',
+                icon: '📝',
+                status: claim.compiledDocumentation ? 'Completed' : 'Skipped',
+                finding: claim.compiledDocumentation ? `Compiled claim documentation. Key elements: ${claim.compiledDocumentation.keyElements.join(', ')}.` : 'Documentation compilation skipped.',
+                details: claim.compiledDocumentation
+            },
+            {
+                id: 'kb-learning',
+                title: 'Knowledge Base Learning Agent',
+                icon: '📚',
+                status: claim.knowledgeBaseUpdate ? 'Completed' : 'Skipped',
+                finding: claim.knowledgeBaseUpdate ? `Updated Knowledge Base with new claim data for ${claim.vinDetails?.model || 'N/A'}.` : 'Knowledge base update skipped.',
+                details: claim.knowledgeBaseUpdate
+            },
+            {
+                id: 'oem-submission',
+                title: 'OEM WMS Submission Agent',
+                icon: '🚀',
+                status: claim.oemSubmissionStatus ? 'Completed' : 'Skipped',
+                finding: claim.oemSubmissionStatus === 'Submitted to OEM WMS' ? 'Claim successfully submitted to OEM WMS.' : (claim.oemSubmissionStatus === 'No direct submission to OEM WMS required' ? 'No direct submission to OEM WMS required for non-eligible claims.' : 'OEM submission status not available.')
+            }
+        ];
+
+        agentStates.forEach(agent => {
+            const card = document.createElement('div');
+            card.id = agent.id;
+            card.className = 'bg-white p-6 rounded-lg shadow-md transition-all duration-500 ease-in-out card-enter card-enter-active';
+            card.innerHTML = `
+                <div class="flex items-center mb-4">
+                    <div class="text-3xl mr-4">${agent.icon}</div>
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800">${agent.title}</h3>
+                        <p class="text-sm text-gray-500">Status: <span class="font-medium text-gray-700">${agent.status}</span></p>
+                    </div>
+                </div>
+                <div class="text-gray-700">
+                    <p class="font-medium">Finding:</p>
+                    <p>${agent.finding}</p>
+                </div>
+            `;
+            orchestrationFlow.appendChild(card);
+        });
+
+        // Display summary
+        summarySection.classList.remove('hidden');
+        finalOutcome.textContent = claim.finalStatus || 'N/A';
+        finalOutcome.className = `font-bold text-md ${claim.finalStatus === 'ELIGIBLE & APPROVED' ? 'text-green-700' : 'text-red-700'}`;
+        if (claim.oemSubmissionStatus) {
+            oemWmsStatus.innerHTML = `<strong>OEM WMS Status:</strong> ${claim.oemSubmissionStatus}`;
+        } else {
+            oemWmsStatus.innerHTML = `<strong>OEM WMS Status:</strong> Not applicable/processed for this claim.`;
+        }
+    }
+
+
+    // --- Agent Definitions ---
+    // Each agent's 'action' function should now return an object with a 'success' boolean
+    // and potentially a 'message' for the log.
+
+    const steps = [
+        {
+            id: 'master-agent',
+            title: 'Master Agent: Claim Orchestration',
+            icon: '🤖',
+            action: async () => {
+                appendLogEntry('Master Agent', 'Initiating claim analysis for VIN: ' + analysisResult.vin + '...');
+                // The master agent primarily orchestrates, so its 'action' is just to log its start.
+                return { success: true, message: 'Orchestration started.' };
+            }
+        },
+        {
+            id: 'vin-agent',
+            title: 'VIN & Warranty Eligibility Agent',
+            icon: '🚗',
+            action: async () => {
+                appendLogEntry('VIN & Warranty Eligibility Agent', `Querying VIN database for ${analysisResult.vin}...`);
+                const vinDetails = await getVinDetails(analysisResult.vin);
+                let message;
+                if (vinDetails) {
+                    analysisResult.vinDetails = vinDetails;
+                    const inServiceDate = new Date(vinDetails.inServiceDate);
+                    const currentDate = new Date();
+                    const monthsSinceService = (currentDate.getFullYear() - inServiceDate.getFullYear()) * 12 + (currentDate.getMonth() - inServiceDate.getMonth());
+
+                    const mileageEligible = analysisResult.odometer <= vinDetails.warrantyMiles;
+                    const timeEligible = monthsSinceService <= vinDetails.warrantyMonths;
+
+                    analysisResult.warrantyEligible = mileageEligible && timeEligible;
+
+                    message = `VIN Details found: Model ${vinDetails.model}, Year ${vinDetails.year}. In-Service Date: ${vinDetails.inServiceDate}. Odometer: ${analysisResult.odometer} miles. Warranty: ${vinDetails.warrantyMonths} months / ${vinDetails.warrantyMiles} miles.`;
+                    appendLogEntry('VIN & Warranty Eligibility Agent', message, 'info');
+
+                    if (analysisResult.warrantyEligible) {
+                        message += `<br><strong>Claim is ELIGIBLE for warranty coverage.</strong>`;
+                        appendLogEntry('VIN & Warranty Eligibility Agent', 'Claim is ELIGIBLE for warranty coverage.', 'success');
+                    } else {
+                        message += `<br><strong class="text-red-600">Claim is NOT ELIGIBLE for warranty coverage.</strong>`;
+                        appendLogEntry('VIN & Warranty Eligibility Agent', 'Claim is NOT ELIGIBLE for warranty coverage.', 'warning');
+                    }
+                } else {
+                    analysisResult.vinDetails = null;
+                    analysisResult.warrantyEligible = false;
+                    message = `<strong class="text-red-600">VIN details not found or invalid. Claim is NOT ELIGIBLE for warranty coverage.</strong>`;
+                    appendLogEntry('VIN & Warranty Eligibility Agent', 'VIN details not found or invalid.', 'error');
+                }
+                return { success: true, message: message };
+            }
+        },
+        {
+            id: 'nlp-early-warning',
+            title: 'NLP Early Warning Agent',
+            icon: '🧠',
+            action: async () => {
+                if (!analysisResult.warrantyEligible) {
+                    appendLogEntry('NLP Early Warning Agent', 'Skipping NLP analysis as claim is not warranty eligible.', 'info');
+                    return { success: true, message: 'Skipped: Not warranty eligible.' };
+                }
+                appendLogEntry('NLP Early Warning Agent', 'Analyzing customer diagnosis using AI (Gemini simulation)...');
+                const geminiAnalysis = await getFailureCodeFromGemini(analysisResult.customerDiagnosis);
+                analysisResult.geminiAnalysis = geminiAnalysis;
+                const message = `Predicted Failure Code: ${geminiAnalysis.code} - ${geminiAnalysis.description} (Confidence: ${(geminiAnalysis.confidence * 100).toFixed(1)}%).`;
+                appendLogEntry('NLP Early Warning Agent', `Analysis complete. ${message}`, 'success');
+                return { success: true, message: message };
+            }
+        },
+        {
+            id: 'tsb-lookup',
+            title: 'TSB Lookup Agent',
+            icon: '📄',
+            action: async () => {
+                if (!analysisResult.warrantyEligible || !analysisResult.geminiAnalysis) {
+                    appendLogEntry('TSB Lookup Agent', 'Skipping TSB lookup as claim is not eligible or NLP analysis is missing.', 'info');
+                    return { success: true, message: 'Skipped: Conditions not met.' };
+                }
+                appendLogEntry('TSB Lookup Agent', `Searching for relevant Technical Service Bulletins for ${analysisResult.vinDetails.model} and code ${analysisResult.geminiAnalysis.code}...`);
+                const relevantTsb = await getRelevantTsb(analysisResult.vinDetails.model, analysisResult.geminiAnalysis.code);
+                analysisResult.relevantTsb = relevantTsb;
+                let message;
+                if (relevantTsb) {
+                    message = `Found relevant TSB: <span class="font-bold">${relevantTsb.code} - ${relevantTsb.title}</span>. Recommended Action: ${relevantTsb.recommendedAction}`;
+                    appendLogEntry('TSB Lookup Agent', `TSB found. ${message}`, 'success');
+                } else {
+                    message = 'No directly relevant TSB found for the predicted failure code.';
+                    appendLogEntry('TSB Lookup Agent', message, 'warning');
+                }
+                return { success: true, message: message };
+            }
+        },
+        {
+            id: 'documentation-compiler',
+            title: 'Documentation Compiler Agent',
+            icon: '📝',
+            action: async () => {
+                if (!analysisResult.warrantyEligible) {
+                    appendLogEntry('Documentation Compiler Agent', 'Skipping documentation compilation as claim is not warranty eligible.', 'info');
+                    return { success: true, message: 'Skipped: Not warranty eligible.' };
+                }
+                appendLogEntry('Documentation Compiler Agent', 'Compiling necessary documentation for the claim...');
+                const compiledDoc = {
+                    keyElements: [
+                        `VIN: ${analysisResult.vin}`,
+                        `Odometer: ${analysisResult.odometer} miles`,
+                        `Customer Diagnosis: "${analysisResult.customerDiagnosis}"`,
+                        `Predicted Failure Code: ${analysisResult.geminiAnalysis?.code || 'N/A'}`,
+                        `Relevant TSB: ${analysisResult.relevantTsb?.code || 'None'}`,
+                        `Warranty Eligibility: ${analysisResult.warrantyEligible ? 'Eligible' : 'Not Eligible'}`
+                    ],
+                    // In a real system, this would be a generated document URL or object
+                    generatedDocumentUrl: 'simulated_document_link.pdf'
+                };
+                analysisResult.compiledDocumentation = compiledDoc;
+                const message = `Compiled claim documentation. Key elements: ${compiledDoc.keyElements.join(', ')}.`;
+                appendLogEntry('Documentation Compiler Agent', `Documentation compiled. ${message}`, 'success');
+                return { success: true, message: message };
+            }
+        },
+        {
+            id: 'kb-learning',
+            title: 'Knowledge Base Learning Agent',
+            icon: '📚',
+            action: async () => {
+                if (!analysisResult.warrantyEligible) {
+                    appendLogEntry('Knowledge Base Learning Agent', 'Skipping knowledge base update as claim is not warranty eligible.', 'info');
+                    return { success: true, message: 'Skipped: Not warranty eligible.' };
+                }
+                appendLogEntry('Knowledge Base Learning Agent', 'Updating internal knowledge base with new claim data...');
+                const kbUpdateData = {
+                    vin: analysisResult.vin,
+                    model: analysisResult.vinDetails?.model,
+                    failureCode: analysisResult.geminiAnalysis?.code,
+                    diagnosis: analysisResult.customerDiagnosis,
+                    tsbApplied: !!analysisResult.relevantTsb,
+                    outcome: analysisResult.finalStatus
+                };
+                // In a real system, this would push data to a database for ML retraining or analysis
+                analysisResult.knowledgeBaseUpdate = kbUpdateData;
+                const message = `Knowledge base updated with data for ${kbUpdateData.model || 'N/A'}, failure code ${kbUpdateData.failureCode || 'N/A'}. This data helps improve future predictions.`;
+                appendLogEntry('Knowledge Base Learning Agent', `Knowledge base updated. ${message}`, 'success');
+                return { success: true, message: message };
+            }
+        },
+        {
+            id: 'oem-submission',
+            title: 'OEM WMS Submission Agent',
+            icon: '🚀',
+            action: async () => {
+                let message;
+                if (analysisResult.warrantyEligible && analysisResult.finalStatus === 'ELIGIBLE & APPROVED') {
+                    appendLogEntry('OEM WMS Submission Agent', 'Submitting claim to OEM Warranty Management System...');
+                    // Simulate a successful submission
+                    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 500));
+                    analysisResult.oemSubmissionStatus = 'Submitted to OEM WMS';
+                    message = 'Claim successfully submitted to OEM WMS.';
+                    appendLogEntry('OEM WMS Submission Agent', message, 'success');
+                } else {
+                    analysisResult.oemSubmissionStatus = 'No direct submission to OEM WMS required';
+                    message = 'No direct submission to OEM WMS required for non-eligible or unapproved claims.';
+                    appendLogEntry('OEM WMS Submission Agent', message, 'info');
+                }
+                return { success: true, message: message };
+            }
+        },
+        {
+            id: 'summary-agent',
+            title: 'Summary & Reporting Agent',
+            icon: '📊',
+            action: async () => {
+                appendLogEntry('Summary & Reporting Agent', 'Generating final claim summary and outcome...');
+                let finalOutcomeText;
+                if (analysisResult.warrantyEligible && analysisResult.geminiAnalysis?.confidence > 0.7) { // Example logic for approval
+                    finalOutcomeText = 'ELIGIBLE & APPROVED';
+                } else {
+                    finalOutcomeText = 'NOT ELIGIBLE / REJECTED';
+                }
+                analysisResult.finalStatus = finalOutcomeText;
+
+                summarySection.classList.remove('hidden');
+                finalOutcome.textContent = finalOutcomeText;
+                finalOutcome.className = `font-bold text-md ${finalOutcomeText === 'ELIGIBLE & APPROVED' ? 'text-green-700' : 'text-red-700'}`;
+
+                if (analysisResult.oemSubmissionStatus) {
+                    oemWmsStatus.innerHTML = `<strong>OEM WMS Status:</strong> ${analysisResult.oemSubmissionStatus}`;
+                } else {
+                    oemWmsStatus.innerHTML = `<strong>OEM WMS Status:</strong> Not applicable/processed.`;
+                }
+
+                nextBtn.classList.add('hidden'); // No "next" button after summary
+                saveClaimBtn.classList.remove('hidden'); // Show save button
+                resetAnalysisBtn.classList.remove('hidden'); // Show reset button
+
+                appendLogEntry('Summary & Reporting Agent', `Final analysis complete. Outcome: ${finalOutcomeText}.`, 'success');
+                return { success: true, message: `Final Outcome: ${finalOutcomeText}` };
+            }
+        }
+    ];
+
+    async function showNextStep() {
+        currentStep++;
+        if (currentStep < steps.length) {
+            const step = steps[currentStep];
+
+            // Create and append the new card
+            const card = document.createElement('div');
+            card.id = step.id;
+            card.className = 'bg-white p-6 rounded-lg shadow-md transition-all duration-500 ease-in-out card-enter';
+            card.innerHTML = `
+                <div class="flex items-center mb-4">
+                    <div class="text-3xl mr-4">${step.icon}</div>
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800">${step.title}</h3>
+                        <p class="text-sm text-gray-500" id="${step.id}-status">Status: Initializing...</p>
+                    </div>
+                </div>
+                <div class="text-gray-700" id="${step.id}-content">
+                    <p class="italic text-gray-500">Agent is processing...</p>
+                    <div class="flex items-center space-x-1 mt-2 text-blue-600">
+                        <span class="loading-dot w-2 h-2 bg-blue-600 rounded-full"></span>
+                        <span class="loading-dot w-2 h-2 bg-blue-600 rounded-full"></span>
+                        <span class="loading-dot w-2 h-2 bg-blue-600 rounded-full"></span>
+                    </div>
+                </div>
+            `;
+            orchestrationFlow.appendChild(card);
+
+            // Trigger animation
+            setTimeout(() => {
+                card.classList.add('card-enter-active');
+            }, 50);
+
+            // Disable next button and show global loading indicator
+            nextBtn.disabled = true;
+            loadingIndicator.classList.remove('hidden');
+
+            const statusEl = document.getElementById(`${step.id}-status`);
+            const contentEl = document.getElementById(`${step.id}-content`);
+
+            try {
+                statusEl.textContent = 'Status: Working...';
+                // Execute the agent's action
+                const actionResult = await step.action();
+
+                statusEl.textContent = actionResult.success ? 'Status: Completed' : 'Status: Failed';
+                contentEl.innerHTML = `<p class="font-medium">Finding:</p><p>${actionResult.message}</p>`;
+
+            } catch (error) {
+                console.error(`Error in ${step.title}:`, error);
+                statusEl.textContent = 'Status: Error!';
+                contentEl.innerHTML = `<p class="font-medium text-red-600">Error: ${error.message}</p>`;
+                appendLogEntry(step.title, `Error during processing: ${error.message}`, 'error');
+                // Decide how to handle errors: stop, skip, or allow continuation
+                // For now, it will just show the error and allow "Next"
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                if (currentStep < steps.length - 1) { // If not the last step (Summary Agent)
+                    nextBtn.disabled = false; // Re-enable next button
+                } else {
+                    nextBtn.classList.add('hidden'); // Hide next button on the last step
+                }
+            }
+
+            if (currentStep === steps.length - 1) {
+                saveClaimBtn.classList.remove('hidden');
+                resetAnalysisBtn.classList.remove('hidden');
+            }
+
+            // Scroll to the new card
+            card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+        } else {
+            console.log("Analysis complete!");
+            nextBtn.classList.add('hidden'); // Hide next button when all steps are done
+        }
+    }
+
+
+    // --- Event Listeners ---
+    claimForm.addEventListener("submit", async function(event) {
+        event.preventDefault();
+        clearAnalysisFlow(); // Clear any previous analysis
+        toggleFormInputs(true); // Disable inputs during analysis
+
+        // Store initial form data
+        analysisResult.vin = document.getElementById('vin').value;
+        analysisResult.odometer = parseInt(document.getElementById('odometer').value);
+        analysisResult.customerDiagnosis = document.getElementById('customer_diagnosis').value;
+
+        currentStep = -1; // Reset step counter
+        generateClaimBtn.classList.add('hidden'); // Hide generate button
+        nextBtn.classList.remove('hidden'); // Show next button
+        await showNextStep(); // Start the first step (Master Agent)
+    });
+
+    nextBtn.addEventListener('click', showNextStep);
+    saveClaimBtn.addEventListener('click', saveClaimToLocalStorage);
+
+    resetAnalysisBtn.addEventListener('click', () => {
+        clearAnalysisFlow();
+        toggleFormInputs(false); // Re-enable inputs
+        document.getElementById('vin').value = '';
+        document.getElementById('odometer').value = '';
+        document.getElementById('customer_diagnosis').value = '';
+        generateClaimBtn.classList.remove('hidden'); // Show generate button again
+        saveClaimBtn.classList.add('hidden');
+        resetAnalysisBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden'); // Hide next button on reset
+        summarySection.classList.add('hidden'); // Hide summary
+    });
+
+    // Initial load of past claims
+    document.addEventListener('DOMContentLoaded', loadPastClaims);
+
+</script>
+</body>
+</html>
